@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qwen Local</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f11;
+      --surface: #18181b;
+      --surface2: #27272a;
+      --border: #3f3f46;
+      --text: #fafafa;
+      --text-muted: #a1a1aa;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --user-bg: #1e1b4b;
+      --assistant-bg: #18181b;
+      --thinking-bg: #1c1917;
+      --thinking-border: #78716c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    #header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0;
+      color: var(--text);
+    }
+    #model-select {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+    }
+    #model-select:focus { border-color: var(--accent); }
+    #thinking-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      margin-left: auto;
+      user-select: none;
+    }
+    #thinking-toggle input { cursor: pointer; accent-color: var(--accent); }
+    #clear-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #clear-btn:hover { border-color: var(--text-muted); color: var(--text); }
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 0;
+      scroll-behavior: smooth;
+    }
+    #messages::-webkit-scrollbar { width: 6px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .message {
+      max-width: 800px;
+      margin: 0 auto 24px;
+      padding: 0 20px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .avatar.user { background: var(--accent); }
+    .avatar.assistant { background: var(--surface2); border: 1px solid var(--border); }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-role {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .msg-content {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--text);
+    }
+    .msg-content p { margin: 0 0 12px; }
+    .msg-content p:last-child { margin-bottom: 0; }
+    .msg-content pre {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      overflow-x: auto;
+      margin: 12px 0;
+      font-size: 13px;
+    }
+    .msg-content code:not(pre code) {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 13px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+    .msg-content ul, .msg-content ol { padding-left: 20px; margin: 0 0 12px; }
+    .msg-content li { margin-bottom: 4px; }
+    .msg-content h1, .msg-content h2, .msg-content h3 { margin: 16px 0 8px; }
+    .msg-content blockquote {
+      border-left: 3px solid var(--accent);
+      margin: 12px 0;
+      padding: 4px 12px;
+      color: var(--text-muted);
+    }
+    .msg-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    .msg-content th, .msg-content td { border: 1px solid var(--border); padding: 8px 12px; font-size: 14px; }
+    .msg-content th { background: var(--surface2); }
+    .thinking-block {
+      background: var(--thinking-bg);
+      border: 1px solid var(--thinking-border);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      overflow: hidden;
+    }
+    .thinking-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #a8956e;
+      user-select: none;
+      border-bottom: 1px solid var(--thinking-border);
+    }
+    .thinking-header:hover { background: rgba(255,255,255,0.03); }
+    .thinking-header .chevron { transition: transform 0.2s; font-size: 10px; }
+    .thinking-header.collapsed .chevron { transform: rotate(-90deg); }
+    .thinking-body {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #a8956e;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      font-style: italic;
+    }
+    .thinking-body.hidden { display: none; }
+    .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .copy-btn {
+      float: right;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      margin-left: 8px;
+      margin-top: -4px;
+    }
+    .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+    #input-area {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 16px 20px;
+      flex-shrink: 0;
+    }
+    #input-wrap {
+      max-width: 800px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+    #input {
+      flex: 1;
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      min-height: 48px;
+      max-height: 200px;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+    #input:focus { border-color: var(--accent); }
+    #input::placeholder { color: var(--text-muted); }
+    #send-btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      width: 44px;
+      height: 44px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #send-btn:hover:not(:disabled) { background: var(--accent-hover); }
+    #send-btn:active:not(:disabled) { transform: scale(0.95); }
+    #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #stop-btn {
+      background: #dc2626;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 0 16px;
+      height: 44px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+    }
+    #stop-btn:hover { background: #b91c1c; }
+    #status {
+      max-width: 800px;
+      margin: 0 auto 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      min-height: 16px;
+    }
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 16px;
+      color: var(--text-muted);
+    }
+    .empty-state .logo { font-size: 48px; opacity: 0.3; }
+    .empty-state h2 { font-size: 20px; margin: 0; color: var(--text); font-weight: 500; }
+    .empty-state p { font-size: 14px; margin: 0; text-align: center; max-width: 300px; }
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-top: 8px;
+    }
+    .suggestion-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .suggestion-btn:hover { border-color: var(--accent); color: var(--text); }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div style="font-size:20px">🤖</div>
+  <h1>Qwen Local</h1>
+  <select id="model-select"><option value="">Loading models…</option></select>
+  <label id="thinking-toggle">
+    <input type="checkbox" id="thinking-check" checked />
+    Thinking mode
+  </label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);" title="Max thinking tokens (0 = unlimited)">
+    Budget:
+    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024"
+      style="width:64px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;outline:none;" />
+  </label>
+  <button id="clear-btn" onclick="clearChat()">Clear</button>
+</div>
+
+<div id="messages">
+  <div class="empty-state" id="empty-state">
+    <div class="logo">✦</div>
+    <h2>Qwen Local</h2>
+    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <div class="suggestions">
+      <button class="suggestion-btn" onclick="fillInput(this)">Explain quantum entanglement simply</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">Write a Python web scraper</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">What are the best Rust crates for async?</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">Critique my thinking on X</button>
+    </div>
+  </div>
+</div>
+
+<div id="input-area">
+  <div id="status"></div>
+  <div id="input-wrap">
+    <textarea id="input" placeholder="Message Qwen…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button id="stop-btn" onclick="stopGeneration()">⏹ Stop</button>
+    <button id="send-btn" onclick="sendMessage()" title="Send (Enter)">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+const OLLAMA_BASE = 'http://localhost:11434';
+let messages = [];
+let abortController = null;
+let currentAssistantEl = null;
+
+// ── Model loading ──────────────────────────────────────────────────────────────
+async function loadModels() {
+  const sel = document.getElementById('model-select');
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/tags`);
+    const data = await res.json();
+    const models = data.models || [];
+    sel.innerHTML = models.length
+      ? models.map(m => `<option value="${m.name}">${m.name}</option>`).join('')
+      : '<option value="">No models found</option>';
+    // Prefer qwen3:8b, then any qwen3, then first model
+    const qwen8b = models.find(m => m.name === 'qwen3:8b');
+    const qwen = models.find(m => m.name.includes('qwen3'));
+    if (qwen8b) sel.value = qwen8b.name;
+    else if (qwen) sel.value = qwen.name;
+    setStatus(models.length ? `${models.length} model${models.length>1?'s':''} available` : 'No models — run: ollama pull qwen3:8b');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Cannot reach Ollama</option>';
+    setStatus('⚠ Cannot connect to Ollama (http://localhost:11434)');
+  }
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────────
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function fillInput(btn) {
+  const inp = document.getElementById('input');
+  inp.value = btn.textContent;
+  autoResize(inp);
+  inp.focus();
+}
+
+function clearChat() {
+  messages = [];
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+  container.appendChild(createEmptyState());
+}
+
+function createEmptyState() {
+  const existing = document.getElementById('empty-state');
+  if (existing) return existing;
+  const div = document.createElement('div');
+  div.className = 'empty-state';
+  div.id = 'empty-state';
+  div.innerHTML = `
+    <div class="logo">✦</div>
+    <h2>Qwen Local</h2>
+    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <div class="suggestions">
+      <button class="suggestion-btn" onclick="fillInput(this)">Explain quantum entanglement simply</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">Write a Python web scraper</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">What are the best Rust crates for async?</button>
+      <button class="suggestion-btn" onclick="fillInput(this)">Critique my thinking on X</button>
+    </div>`;
+  return div;
+}
+
+function addMessage(role, contentHtml, raw) {
+  document.getElementById('empty-state')?.remove();
+  const container = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'message';
+  wrap.innerHTML = `
+    <div class="avatar ${role}">${role === 'user' ? '👤' : '✦'}</div>
+    <div class="msg-body">
+      <div class="msg-role">${role === 'user' ? 'You' : 'Qwen'}</div>
+      <div class="msg-content">${contentHtml}</div>
+    </div>`;
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+  return wrap.querySelector('.msg-content');
+}
+
+function renderMarkdown(text) {
+  // Protect display math blocks from being split by the markdown parser
+  // Convert $$\n...\n$$ into a single-line <div class="math-block"> so marked doesn't mangle it
+  const protected_ = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) => {
+    const escaped = inner.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `<div class="math-block">$$${escaped}$$</div>`;
+  });
+  return marked.parse(protected_, { breaks: true, gfm: true });
+}
+
+function highlightCode(el) {
+  el.querySelectorAll('pre code').forEach(block => {
+    hljs.highlightElement(block);
+    const pre = block.parentElement;
+    if (!pre.querySelector('.copy-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn';
+      btn.textContent = 'copy';
+      btn.onclick = () => {
+        navigator.clipboard.writeText(block.textContent);
+        btn.textContent = 'copied!';
+        setTimeout(() => btn.textContent = 'copy', 2000);
+      };
+      pre.insertBefore(btn, pre.firstChild);
+    }
+  });
+  if (typeof renderMathInElement !== 'undefined') {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+        { left: '\\[', right: '\\]', display: true },
+      ],
+      throwOnError: false,
+    });
+  }
+}
+
+// ── Thinking block ─────────────────────────────────────────────────────────────
+function createThinkingBlock(thinkText, collapsed = true) {
+  const div = document.createElement('div');
+  div.className = 'thinking-block';
+  div.innerHTML = `
+    <div class="thinking-header ${collapsed ? 'collapsed' : ''}" onclick="toggleThinking(this)">
+      <span class="chevron">▾</span>
+      <span>Thinking</span>
+    </div>
+    <div class="thinking-body ${collapsed ? 'hidden' : ''}">${thinkText}</div>`;
+  return div;
+}
+
+function toggleThinking(header) {
+  header.classList.toggle('collapsed');
+  header.nextElementSibling.classList.toggle('hidden');
+}
+
+// ── Streaming chat ─────────────────────────────────────────────────────────────
+async function sendMessage() {
+  const inp = document.getElementById('input');
+  const text = inp.value.trim();
+  if (!text || abortController) return;
+
+  const model = document.getElementById('model-select').value;
+  if (!model) { setStatus('Select a model first'); return; }
+
+  const thinkingEnabled = document.getElementById('thinking-check').checked;
+  const thinkBudget = parseInt(document.getElementById('think-budget').value) || 0;
+
+  inp.value = '';
+  inp.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('stop-btn').style.display = 'flex';
+
+  messages.push({ role: 'user', content: text });
+  addMessage('user', renderMarkdown(text));
+
+  const contentEl = addMessage('assistant', '');
+  currentAssistantEl = contentEl;
+  contentEl.innerHTML = '<span class="cursor"></span>';
+
+  abortController = new AbortController();
+  setStatus('Generating…');
+
+  let fullText = '';
+  let thinkText = '';
+  let inThink = false;
+  let thinkDone = false;
+
+  try {
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: abortController.signal,
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        options: { num_predict: 4096 },
+        think: thinkingEnabled,
+        ...(thinkingEnabled && thinkBudget > 0 ? { thinking_budget: thinkBudget } : {}),
+      }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let tokenCount = 0;
+    let thinkTokens = 0;
+    const t0 = performance.now();
+    let thinkBlockEl = null;
+    let thinkBodyEl = null;
+    let mdDivEl = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const lines = decoder.decode(value).split('\n').filter(Boolean);
+      for (const line of lines) {
+        let chunk;
+        try { chunk = JSON.parse(line); } catch { continue; }
+        if (chunk.done) {
+          const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+          const thinkInfo = thinkTokens > 0 ? ` · 🧠 ${thinkTokens} think` : '';
+          setStatus(`${tokenCount} tokens${thinkInfo} · ${elapsed}s · ${(tokenCount/elapsed).toFixed(0)} tok/s`);
+          break;
+        }
+        // Ollama returns thinking in message.thinking, content in message.content
+        const thinkDelta = chunk.message?.thinking || '';
+        const delta = chunk.message?.content || '';
+        if (!thinkDelta && !delta) continue;
+
+        if (thinkDelta) {
+          thinkTokens++;
+          thinkText += thinkDelta;
+          // Lazy-create thinking block, stream text directly into body element
+          if (!thinkBlockEl) {
+            thinkBlockEl = createThinkingBlock('', false);
+            thinkBodyEl = thinkBlockEl.querySelector('.thinking-body');
+            contentEl.innerHTML = '';
+            contentEl.appendChild(thinkBlockEl);
+          }
+          if (thinkBodyEl) thinkBodyEl.textContent = thinkText;
+          setStatus(`🧠 Thinking… ${thinkTokens} tokens`);
+        }
+        if (delta) {
+          tokenCount++;
+          fullText += delta;
+          // Collapse thinking block once response starts
+          if (thinkBlockEl && thinkBodyEl) {
+            thinkBlockEl.querySelector('.thinking-header')?.classList.add('collapsed');
+            thinkBodyEl.classList.add('hidden');
+            thinkBlockEl = null; // stop updating it
+          }
+          // Lazy-create/update response div
+          if (!mdDivEl) {
+            mdDivEl = document.createElement('div');
+            contentEl.appendChild(mdDivEl);
+          }
+          mdDivEl.innerHTML = renderMarkdown(fullText);
+          highlightCode(mdDivEl);
+        }
+        if (!chunk.done) {
+          const cursor = document.createElement('span');
+          cursor.className = 'cursor';
+          contentEl.appendChild(cursor);
+        }
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+      }
+    }
+
+    // Remove trailing cursor, ensure final render is clean
+    contentEl.querySelectorAll('.cursor').forEach(c => c.remove());
+    if (!fullText && !thinkText) {
+      contentEl.innerHTML = '<span style="color:var(--text-muted)">…</span>';
+    }
+    messages.push({ role: 'assistant', content: fullText || '' });
+
+  } catch(e) {
+    if (e.name === 'AbortError') {
+      setStatus('Stopped');
+    } else {
+      setStatus('Error: ' + e.message);
+      contentEl.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`;
+    }
+  } finally {
+    abortController = null;
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('stop-btn').style.display = 'none';
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+  }
+}
+
+function stopGeneration() {
+  abortController?.abort();
+}
+
+loadModels();
+document.getElementById('input').focus();
+</script>
+</body>
+</html>
