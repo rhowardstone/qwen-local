@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Qwen Local</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
@@ -881,9 +882,9 @@ function renderSessionList(query='') {
       div.className = 'session-item' + (s.id===currentSessionId?' active':'') + (isLive?' generating':'');
       div.onclick = () => loadSession(s.id);
 
-      let title = s.title;
+      let title = escHtml(s.title);
       if (q) {
-        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+        const re = new RegExp(escHtml(q).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
         title = title.replace(re, m=>`<mark>${m}</mark>`);
       }
 
@@ -891,7 +892,7 @@ function renderSessionList(query='') {
       const ctx = s.tokCtx || 32768;
       const used = turns.reduce((sum, t) => sum + (t.actual ?? t.est) + t.think, 0);
       const pct = Math.min(100, Math.round(used / ctx * 100));
-      const modelShort = (s.model || '').replace(/:latest$/,'');
+      const modelShort = escHtml((s.model || '').replace(/:latest$/,''));
       const ctxColor = pct > 85 ? '#f87171' : pct > 60 ? '#f59e0b' : 'var(--tok-asst)';
       const msgCount = Math.ceil(s.messages.filter(m=>m.role==='user').length);
 
@@ -1062,7 +1063,10 @@ function renderMarkdown(text) {
     const e=inner.trim().replace(/</g,'&lt;').replace(/>/g,'&gt;');
     return `<div class="math-block">$$${e}$$</div>`;
   });
-  return marked.parse(p,{breaks:true,gfm:true});
+  const raw = marked.parse(p,{breaks:true,gfm:true});
+  return typeof DOMPurify !== 'undefined'
+    ? DOMPurify.sanitize(raw, {FORCE_BODY:true, ADD_TAGS:['mark']})
+    : raw;
 }
 
 function highlightCode(el) {

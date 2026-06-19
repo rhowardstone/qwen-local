@@ -4,8 +4,10 @@
 Run alongside the chat server:
     python3 tools_server.py
 
-Provides file read/write, directory listing, and shell execution inside
-~/qwen-workspace/ — all paths are sandboxed to that directory.
+Provides file read/write and directory listing inside ~/qwen-workspace/
+(paths are sandbox-checked). Also exposes run_shell, which executes
+arbitrary commands with your privileges — it is NOT sandboxed.
+Only run this server while using the chat UI; stop it when not in use.
 """
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, subprocess
@@ -34,7 +36,26 @@ class ToolHandler(BaseHTTPRequestHandler):
         self._cors()
         self.end_headers()
 
+    def _check_origin(self):
+        """Return True only if the request comes from the expected origin."""
+        origin = self.headers.get('Origin', '')
+        host   = self.headers.get('Host', '')
+        # Requests from the chat UI carry an Origin header; direct/curl calls don't.
+        # Reject anything that claims a different origin.
+        if origin and origin != ALLOWED_ORIGIN:
+            return False
+        # Reject requests routed to an unexpected Host (DNS-rebinding defence).
+        if host and not host.startswith(('localhost:', '127.0.0.1:')):
+            return False
+        return True
+
     def do_POST(self):
+        if not self._check_origin():
+            self.send_response(403)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(b'{"error":"Forbidden"}')
+            return
         length = int(self.headers.get('Content-Length', 0))
         try:
             body = json.loads(self.rfile.read(length)) if length else {}
@@ -51,9 +72,13 @@ class ToolHandler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def _safe_path(self, rel):
-        """Resolve path and verify it's inside WORKSPACE."""
-        p = (WORKSPACE / (rel or '')).resolve()
-        if not str(p).startswith(str(WORKSPACE.resolve())):
+        """Resolve path and verify it's strictly inside WORKSPACE."""
+        ws = WORKSPACE.resolve()
+        p  = (WORKSPACE / (rel or '')).resolve()
+        # Use relative_to() — startswith() is wrong because /a/b-extra starts with /a/b
+        try:
+            p.relative_to(ws)
+        except ValueError:
             raise ValueError(f'Path escapes workspace: {rel!r}')
         return p
 
