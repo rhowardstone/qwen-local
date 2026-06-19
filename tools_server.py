@@ -40,8 +40,10 @@ class ToolHandler(BaseHTTPRequestHandler):
         """Return True only if the request comes from the expected origin."""
         origin = self.headers.get('Origin', '')
         host   = self.headers.get('Host', '')
-        # Requests from the chat UI carry an Origin header; direct/curl calls don't.
-        # Reject anything that claims a different origin.
+        # Requests from the chat UI always carry Origin (browsers attach it to
+        # every cross-origin POST, including text/plain "simple" requests that
+        # skip preflight). Requests with *no* Origin (curl, local scripts) are
+        # intentionally allowed — don't "fix" this: it would break CLI access.
         if origin and origin != ALLOWED_ORIGIN:
             return False
         # Reject requests routed to an unexpected Host (DNS-rebinding defence).

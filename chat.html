@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Qwen Local</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+  <script src="purify.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
@@ -1064,9 +1064,7 @@ function renderMarkdown(text) {
     return `<div class="math-block">$$${e}$$</div>`;
   });
   const raw = marked.parse(p,{breaks:true,gfm:true});
-  return typeof DOMPurify !== 'undefined'
-    ? DOMPurify.sanitize(raw, {FORCE_BODY:true, ADD_TAGS:['mark']})
-    : raw;
+  return DOMPurify.sanitize(raw, {FORCE_BODY:true, ADD_TAGS:['mark']});
 }
 
 function highlightCode(el) {
