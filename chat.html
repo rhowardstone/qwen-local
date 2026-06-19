@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Qwen Local</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -16,73 +15,312 @@
       --bg: #0f0f11;
       --surface: #18181b;
       --surface2: #27272a;
+      --surface3: #1c1c1f;
       --border: #3f3f46;
       --text: #fafafa;
-      --text-muted: #a1a1aa;
+      --muted: #a1a1aa;
       --accent: #6366f1;
-      --accent-hover: #4f46e5;
-      --user-bg: #1e1b4b;
-      --assistant-bg: #18181b;
+      --accent-h: #4f46e5;
       --thinking-bg: #1c1917;
       --thinking-border: #78716c;
+      --tok-user: #6366f1;
+      --tok-think: #f59e0b;
+      --tok-asst: #10b981;
+      --sidebar-w: 240px;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      margin: 0;
       height: 100vh;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
+
+    /* ── Header ── */
     #header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 20px;
+      padding: 8px 12px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      flex-shrink: 0;
+      min-height: 54px;
+      z-index: 10;
+    }
+    #sidebar-toggle {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
       flex-shrink: 0;
     }
-    #header h1 {
-      font-size: 16px;
-      font-weight: 600;
-      margin: 0;
-      color: var(--text);
-    }
+    #sidebar-toggle:hover { background: var(--surface2); color: var(--text); }
+    #header h1 { font-size: 14px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
     #model-select {
       background: var(--surface2);
       color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 6px 10px;
-      font-size: 13px;
+      border-radius: 7px;
+      padding: 4px 8px;
+      font-size: 12px;
       cursor: pointer;
       outline: none;
+      flex-shrink: 0;
     }
     #model-select:focus { border-color: var(--accent); }
+
+    /* ── Token viz ── */
+    #token-viz {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 0 6px;
+    }
+    .viz-tabs {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .viz-tab {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      padding: 1px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      font-weight: 500;
+      letter-spacing: .03em;
+      transition: background .1s, color .1s;
+    }
+    .viz-tab.active { background: var(--accent); color: #fff; }
+    .viz-tab:not(.active):hover { background: var(--surface2); color: var(--text); }
+    #viz-totals-wrap, #viz-history-wrap { width: 100%; display: flex; flex-direction: column; gap: 2px; }
+    #token-bar, #history-bar {
+      display: flex;
+      height: 6px;
+      border-radius: 3px;
+      overflow: hidden;
+      background: var(--surface2);
+      width: 100%;
+    }
+    #history-bar { gap: 1px; }
+    #token-bar > div { height: 100%; min-width: 0; transition: width .3s ease; }
+    #bar-user { background: var(--tok-user); }
+    #bar-think { background: var(--tok-think); }
+    #bar-asst { background: var(--tok-asst); }
+    #token-legend, #history-legend {
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      white-space: nowrap;
+    }
+    #history-legend { justify-content: center; }
+    .leg-item { display: flex; align-items: center; gap: 2px; }
+    .leg-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+    .hist-seg { height: 100%; min-width: 2px; flex-shrink: 0; transition: opacity .1s; cursor: default; }
+    .hist-seg:hover { opacity: .75; }
+    .hist-user { background: var(--tok-user); }
+    .hist-asst { background: var(--tok-asst); }
+    .hist-think { background: var(--tok-think); }
+
+    /* ── Header right controls ── */
     #thinking-toggle {
+      display: flex; align-items: center; gap: 4px;
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      user-select: none; white-space: nowrap; flex-shrink: 0;
+    }
+    #thinking-toggle input { cursor: pointer; accent-color: var(--accent); }
+    #budget-label {
+      display: flex; align-items: center; gap: 3px;
+      font-size: 11px; color: var(--muted); flex-shrink: 0; white-space: nowrap;
+    }
+    #think-budget {
+      width: 56px; background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 2px 4px; font-size: 11px; outline: none;
+    }
+    #think-budget:focus { border-color: var(--accent); }
+    .hdr-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); border-radius: 5px; padding: 3px 8px;
+      font-size: 11px; cursor: pointer; flex-shrink: 0;
+    }
+    .hdr-btn:hover { border-color: var(--muted); color: var(--text); }
+
+    /* ── App body (sidebar + main) ── */
+    #app { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface3);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: width .2s ease, opacity .2s ease;
+    }
+    #sidebar.collapsed { width: 0; opacity: 0; pointer-events: none; }
+    #sidebar-top {
+      padding: 10px 10px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    #new-chat-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 13px;
-      color: var(--text-muted);
-      cursor: pointer;
-      margin-left: auto;
-      user-select: none;
     }
-    #thinking-toggle input { cursor: pointer; accent-color: var(--accent); }
-    #clear-btn {
-      background: transparent;
+    #new-chat-btn:hover { background: var(--accent-h); }
+    #session-search {
+      background: var(--surface2);
+      color: var(--text);
       border: 1px solid var(--border);
-      color: var(--text-muted);
       border-radius: 6px;
-      padding: 5px 10px;
+      padding: 5px 8px;
       font-size: 12px;
-      cursor: pointer;
+      outline: none;
+      width: 100%;
     }
-    #clear-btn:hover { border-color: var(--text-muted); color: var(--text); }
+    #session-search:focus { border-color: var(--accent); }
+    #session-search::placeholder { color: var(--muted); }
+    #session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 6px;
+    }
+    #session-list::-webkit-scrollbar { width: 4px; }
+    #session-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+    .session-item {
+      padding: 7px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      position: relative;
+    }
+    .session-item:hover { background: var(--surface2); }
+    .session-item.active { background: var(--surface2); border: 1px solid var(--border); }
+    .session-info { flex: 1; min-width: 0; }
+    .session-title {
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text);
+    }
+    .session-meta {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .session-model {
+      font-size: 9px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0px 4px;
+      color: var(--muted);
+      flex-shrink: 0;
+      font-family: monospace;
+    }
+    .session-ctx-bar {
+      flex: 1;
+      height: 2px;
+      border-radius: 1px;
+      background: var(--border);
+      margin-top: 4px;
+      overflow: hidden;
+    }
+    .session-ctx-fill {
+      height: 100%;
+      border-radius: 1px;
+      background: var(--tok-asst);
+      transition: width .3s;
+    }
+    .model-switch-divider {
+      max-width: 800px;
+      margin: 0 auto 16px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .model-switch-divider::before, .model-switch-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .session-del {
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      opacity: 0;
+      font-size: 14px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+    .session-item:hover .session-del { opacity: 1; }
+    .session-del:hover { color: #f87171; background: rgba(248,113,113,.1); }
+    .gen-dot {
+      display: inline-block; width: 6px; height: 6px;
+      border-radius: 50%; background: #10b981;
+      margin-right: 5px; vertical-align: middle;
+      animation: gen-pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes gen-pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .session-group-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--muted);
+      padding: 8px 8px 3px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    /* ── Main ── */
+    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Messages ── */
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -90,7 +328,6 @@
       scroll-behavior: smooth;
     }
     #messages::-webkit-scrollbar { width: 6px; }
-    #messages::-webkit-scrollbar-track { background: transparent; }
     #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     .message {
       max-width: 800px;
@@ -101,272 +338,593 @@
       align-items: flex-start;
     }
     .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      flex-shrink: 0;
-      margin-top: 2px;
+      width: 30px; height: 30px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; flex-shrink: 0; margin-top: 2px;
     }
     .avatar.user { background: var(--accent); }
     .avatar.assistant { background: var(--surface2); border: 1px solid var(--border); }
     .msg-body { flex: 1; min-width: 0; }
-    .msg-role {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+    .msg-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .msg-role { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .msg-copy-btn {
+      background: transparent; border: none; color: var(--muted);
+      cursor: pointer; padding: 2px 5px; border-radius: 4px;
+      opacity: 0; transition: opacity .15s, color .15s, background .15s;
+      display: flex; align-items: center; gap: 3px; font-size: 11px;
     }
-    .msg-content {
-      font-size: 15px;
-      line-height: 1.65;
-      color: var(--text);
-    }
+    .message:hover .msg-copy-btn { opacity: 1; }
+    .msg-copy-btn:hover { color: var(--text); background: var(--surface2); }
+    .msg-content { font-size: 15px; line-height: 1.65; color: var(--text); }
     .msg-content p { margin: 0 0 12px; }
     .msg-content p:last-child { margin-bottom: 0; }
     .msg-content pre {
-      background: #0d1117;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      overflow-x: auto;
-      margin: 12px 0;
-      font-size: 13px;
+      background: #0d1117; border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; overflow-x: auto; margin: 12px 0; font-size: 13px;
     }
     .msg-content code:not(pre code) {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 2px 6px;
-      font-size: 13px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 2px 6px; font-size: 13px;
       font-family: 'JetBrains Mono', 'Fira Code', monospace;
     }
     .msg-content ul, .msg-content ol { padding-left: 20px; margin: 0 0 12px; }
     .msg-content li { margin-bottom: 4px; }
     .msg-content h1, .msg-content h2, .msg-content h3 { margin: 16px 0 8px; }
     .msg-content blockquote {
-      border-left: 3px solid var(--accent);
-      margin: 12px 0;
-      padding: 4px 12px;
-      color: var(--text-muted);
+      border-left: 3px solid var(--accent); margin: 12px 0;
+      padding: 4px 12px; color: var(--muted);
     }
+    .msg-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    /* ── Compaction summary block ── */
+    .summary-block { background: #0f1a2e; border: 1px solid #2d4a6e; border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+    .summary-header { display: flex; align-items: center; gap: 8px; padding: 7px 12px; cursor: pointer; font-size: 12px; color: #7aa2c8; user-select: none; }
+    .summary-header:hover { background: rgba(255,255,255,.03); }
+    .summary-header .chevron { transition: transform .2s; font-size: 10px; }
+    .summary-header.collapsed .chevron { transform: rotate(-90deg); }
+    .summary-body { padding: 10px 12px; font-size: 13px; color: #7aa2c8; line-height: 1.6; border-top: 1px solid #2d4a6e; }
+    .summary-body.hidden { display: none; }
     .msg-content table { border-collapse: collapse; width: 100%; margin: 12px 0; }
     .msg-content th, .msg-content td { border: 1px solid var(--border); padding: 8px 12px; font-size: 14px; }
     .msg-content th { background: var(--surface2); }
-    .thinking-block {
-      background: var(--thinking-bg);
-      border: 1px solid var(--thinking-border);
-      border-radius: 8px;
-      margin-bottom: 12px;
-      overflow: hidden;
-    }
+
+    /* ── Thinking block ── */
+    .thinking-block { background: var(--thinking-bg); border: 1px solid var(--thinking-border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
     .thinking-header {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      cursor: pointer;
-      font-size: 12px;
-      color: #a8956e;
-      user-select: none;
-      border-bottom: 1px solid var(--thinking-border);
+      display: flex; align-items: center; gap: 8px;
+      padding: 7px 12px; cursor: pointer; font-size: 12px;
+      color: #a8956e; user-select: none; border-bottom: 1px solid var(--thinking-border);
     }
-    .thinking-header:hover { background: rgba(255,255,255,0.03); }
-    .thinking-header .chevron { transition: transform 0.2s; font-size: 10px; }
+    .thinking-header:hover { background: rgba(255,255,255,.03); }
+    .thinking-header .chevron { transition: transform .2s; font-size: 10px; }
     .thinking-header.collapsed .chevron { transform: rotate(-90deg); }
-    .thinking-body {
-      padding: 10px 12px;
-      font-size: 13px;
-      color: #a8956e;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      font-style: italic;
-    }
+    .thinking-body { padding: 10px 12px; font-size: 13px; color: #a8956e; line-height: 1.6; white-space: pre-wrap; font-style: italic; }
     .thinking-body.hidden { display: none; }
+
+    /* ── Cursor ── */
     .cursor {
-      display: inline-block;
-      width: 2px;
-      height: 1em;
-      background: var(--accent);
-      margin-left: 2px;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
+      display: inline-block; width: 2px; height: 1em;
+      background: var(--accent); margin-left: 2px;
+      vertical-align: text-bottom; animation: blink 1s step-end infinite;
     }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── Tool calls ── */
+    .tool-call { background: #0d1f2d; border: 1px solid #1e3a52; border-radius: 8px; margin: 4px 0; overflow: hidden; }
+    .tool-call-header { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-family: var(--mono); font-size: 12px; color: #5a9fd4; }
+    .tool-call-name { font-weight: 600; color: #7ab8e8; }
+    .tool-call-args { color: #3d6580; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .tool-call-result { padding: 8px 12px; border-top: 1px solid #1e3a52; font-family: var(--mono); font-size: 12px; color: #6b9ab8; white-space: pre-wrap; max-height: 260px; overflow-y: auto; }
+    .tool-call-error { color: #f87171; }
+    #tools-toggle { display:flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none;white-space:nowrap;flex-shrink:0; }
+    #tools-toggle input { cursor:pointer;accent-color:var(--accent); }
+
+    /* ── Code copy ── */
     .copy-btn {
-      float: right;
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 4px;
-      padding: 2px 8px;
-      font-size: 11px;
-      cursor: pointer;
-      margin-left: 8px;
-      margin-top: -4px;
+      float: right; background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 4px; padding: 2px 8px;
+      font-size: 11px; cursor: pointer; margin-left: 8px; margin-top: -4px;
     }
-    .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
-    #input-area {
-      background: var(--surface);
-      border-top: 1px solid var(--border);
-      padding: 16px 20px;
-      flex-shrink: 0;
-    }
-    #input-wrap {
-      max-width: 800px;
-      margin: 0 auto;
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-    }
+    .copy-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    /* ── Input area ── */
+    #input-area { background: var(--surface); border-top: 1px solid var(--border); padding: 12px 20px; flex-shrink: 0; }
+    #input-wrap { max-width: 800px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
     #input {
-      flex: 1;
-      background: var(--surface2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 16px;
-      font-size: 15px;
-      font-family: inherit;
-      resize: none;
-      outline: none;
-      min-height: 48px;
-      max-height: 200px;
-      line-height: 1.5;
-      transition: border-color 0.15s;
+      flex: 1; background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 11px 15px; font-size: 15px; font-family: inherit;
+      resize: none; outline: none; min-height: 46px; max-height: 200px;
+      line-height: 1.5; transition: border-color .15s;
     }
     #input:focus { border-color: var(--accent); }
-    #input::placeholder { color: var(--text-muted); }
-    #send-btn {
-      background: var(--accent);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      width: 44px;
-      height: 44px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: background 0.15s, transform 0.1s;
+    #input::placeholder { color: var(--muted); }
+    /* Send/Stop share one button slot */
+    #action-btn {
+      width: 42px; height: 42px; border: none; border-radius: 10px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: background .15s, transform .1s;
     }
-    #send-btn:hover:not(:disabled) { background: var(--accent-hover); }
-    #send-btn:active:not(:disabled) { transform: scale(0.95); }
-    #send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #stop-btn {
-      background: #dc2626;
-      color: white;
-      border: none;
-      border-radius: 10px;
-      padding: 0 16px;
-      height: 44px;
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      display: none;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.15s;
+    #action-btn.send { background: var(--accent); color: #fff; }
+    #action-btn.send:hover { background: var(--accent-h); }
+    #action-btn.send:active { transform: scale(.95); }
+    #action-btn.send:disabled { opacity: .4; cursor: not-allowed; }
+    #action-btn.stop { background: #dc2626; color: #fff; }
+    #action-btn.stop:hover { background: #b91c1c; }
+    #status-row {
+      max-width: 800px; margin: 0 auto 6px;
+      display: flex; align-items: center; justify-content: space-between;
     }
-    #stop-btn:hover { background: #b91c1c; }
-    #status {
-      max-width: 800px;
-      margin: 0 auto 6px;
-      font-size: 12px;
-      color: var(--text-muted);
-      min-height: 16px;
+    #status { font-size: 12px; color: var(--muted); min-height: 16px; flex: 1; }
+    #sys-toggle {
+      font-size: 11px; color: var(--muted); cursor: pointer;
+      background: none; border: none; padding: 0 0 0 8px; font-family: inherit;
+      white-space: nowrap; flex-shrink: 0;
     }
+    #sys-toggle:hover { color: var(--text); }
+    #sys-prompt-wrap { max-width: 800px; margin: 0 auto 6px; display: none; }
+    #sys-prompt-wrap.open { display: block; }
+    #sys-prompt {
+      width: 100%; background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 12px; font-size: 12px; font-family: inherit;
+      resize: vertical; outline: none; min-height: 56px; max-height: 160px;
+      line-height: 1.5; transition: border-color .15s; box-sizing: border-box;
+    }
+    #sys-prompt:focus { border-color: var(--accent); }
+    .retry-btn {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); padding: 7px 14px; border-radius: 8px;
+      cursor: pointer; font-size: 13px; font-family: inherit;
+      transition: background .15s, color .15s;
+    }
+    .retry-btn:hover { background: var(--border); color: var(--text); }
+
+    /* ── Empty state ── */
     .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-      gap: 16px;
-      color: var(--text-muted);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; gap: 14px; color: var(--muted);
     }
-    .empty-state .logo { font-size: 48px; opacity: 0.3; }
-    .empty-state h2 { font-size: 20px; margin: 0; color: var(--text); font-weight: 500; }
-    .empty-state p { font-size: 14px; margin: 0; text-align: center; max-width: 300px; }
-    .suggestions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: center;
-      margin-top: 8px;
-    }
+    .empty-state .logo { font-size: 42px; opacity: .3; }
+    .empty-state h2 { font-size: 20px; color: var(--text); font-weight: 500; }
+    .empty-state p { font-size: 14px; text-align: center; max-width: 300px; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 6px; }
     .suggestion-btn {
-      background: var(--surface2);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      border-radius: 20px;
-      padding: 6px 14px;
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.15s;
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--muted); border-radius: 20px; padding: 5px 13px;
+      font-size: 13px; cursor: pointer; transition: all .15s;
     }
     .suggestion-btn:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── Search highlight ── */
+    mark { background: rgba(99,102,241,.35); color: var(--text); border-radius: 2px; }
   </style>
 </head>
 <body>
 
 <div id="header">
-  <div style="font-size:20px">🤖</div>
+  <button id="sidebar-toggle" onclick="toggleSidebar()" title="Sessions">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
   <h1>Qwen Local</h1>
-  <select id="model-select"><option value="">Loading models…</option></select>
-  <label id="thinking-toggle">
-    <input type="checkbox" id="thinking-check" checked />
-    Thinking mode
-  </label>
-  <label style="display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text-muted);" title="Max thinking tokens (0 = unlimited)">
-    Budget:
-    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024"
-      style="width:64px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:5px;padding:4px 6px;font-size:12px;outline:none;" />
-  </label>
-  <button id="clear-btn" onclick="clearChat()">Clear</button>
-</div>
+  <select id="model-select"><option value="">Loading…</option></select>
 
-<div id="messages">
-  <div class="empty-state" id="empty-state">
-    <div class="logo">✦</div>
-    <h2>Qwen Local</h2>
-    <p>Running locally on your RTX 4060. Private, fast, free.</p>
-    <div class="suggestions">
-      <button class="suggestion-btn" onclick="fillInput(this)">Explain quantum entanglement simply</button>
-      <button class="suggestion-btn" onclick="fillInput(this)">Write a Python web scraper</button>
-      <button class="suggestion-btn" onclick="fillInput(this)">What are the best Rust crates for async?</button>
-      <button class="suggestion-btn" onclick="fillInput(this)">Critique my thinking on X</button>
+  <div id="token-viz">
+    <div class="viz-tabs">
+      <button class="viz-tab active" id="tab-totals"  onclick="setVizMode('totals')">Totals</button>
+      <button class="viz-tab"        id="tab-history" onclick="setVizMode('history')">History</button>
+    </div>
+    <div id="viz-totals-wrap">
+      <div id="token-bar">
+        <div id="bar-user"></div><div id="bar-think"></div><div id="bar-asst"></div>
+      </div>
+      <div id="token-legend">
+        <span class="leg-item"><span class="leg-dot" style="background:var(--tok-user)"></span><span id="leg-user">0</span>&nbsp;user</span>
+        <span class="leg-item"><span class="leg-dot" style="background:var(--tok-think)"></span><span id="leg-think">0</span>&nbsp;think</span>
+        <span class="leg-item"><span class="leg-dot" style="background:var(--tok-asst)"></span><span id="leg-asst">0</span>&nbsp;asst</span>
+        <span style="color:var(--muted);opacity:.7">· <span id="leg-free">?</span> free / <span id="leg-ctx">?</span></span>
+      </div>
+    </div>
+    <div id="viz-history-wrap" style="display:none">
+      <div id="history-bar"></div>
+      <div id="history-legend">no messages yet</div>
     </div>
   </div>
+
+  <label id="thinking-toggle">
+    <input type="checkbox" id="thinking-check" checked />
+    Thinking
+  </label>
+  <label id="budget-label" title="Max thinking tokens (0 = unlimited)">
+    Budget: <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024" />
+  </label>
+  <label id="tools-toggle" title="Give the model file/shell access (start tools_server.py first)">
+    <input type="checkbox" id="tools-check" />
+    🔧 Tools
+  </label>
+  <button class="hdr-btn" onclick="clearChat()">New</button>
 </div>
 
-<div id="input-area">
-  <div id="status"></div>
-  <div id="input-wrap">
-    <textarea id="input" placeholder="Message Qwen…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
-    <button id="stop-btn" onclick="stopGeneration()">⏹ Stop</button>
-    <button id="send-btn" onclick="sendMessage()" title="Send (Enter)">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="22" y1="2" x2="11" y2="13"></line>
-        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-      </svg>
-    </button>
+<div id="app">
+  <!-- ── Sidebar ── -->
+  <div id="sidebar">
+    <div id="sidebar-top">
+      <button id="new-chat-btn" onclick="newChat()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        New chat
+      </button>
+      <input id="session-search" type="search" placeholder="Search chats…" oninput="renderSessionList(this.value)" />
+    </div>
+    <div id="session-list"></div>
+  </div>
+
+  <!-- ── Main ── -->
+  <div id="main">
+    <div id="messages">
+      <div class="empty-state" id="empty-state">
+        <div class="logo">✦</div>
+        <h2>Qwen Local</h2>
+        <p>Running locally on your RTX 4060. Private, fast, free.</p>
+        <div class="suggestions">
+          <button class="suggestion-btn" onclick="fillInput(this)">Explain quantum entanglement simply</button>
+          <button class="suggestion-btn" onclick="fillInput(this)">Write a Python web scraper</button>
+          <button class="suggestion-btn" onclick="fillInput(this)">What are the best Rust crates for async?</button>
+          <button class="suggestion-btn" onclick="fillInput(this)">Critique my thinking on X</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="input-area">
+      <div id="sys-prompt-wrap">
+        <textarea id="sys-prompt" placeholder="System prompt — sent to every model, not stored in conversation history…" oninput="systemPrompt=this.value;localStorage.setItem('qwen-system-prompt',this.value)"></textarea>
+      </div>
+      <div id="status-row">
+        <div id="status"></div>
+        <button id="sys-toggle" onclick="document.getElementById('sys-prompt-wrap').classList.toggle('open')" title="Edit system prompt">⚙ system</button>
+      </div>
+      <div id="input-wrap">
+        <textarea id="input" placeholder="Message…" rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button id="action-btn" class="send" onclick="handleAction()" title="Send (Enter)">
+          <svg id="send-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          <svg id="stop-icon" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <rect x="4" y="4" width="16" height="16" rx="2"/>
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
 const OLLAMA_BASE = 'http://localhost:11434';
+const SESSIONS_KEY = 'qwen-sessions';
+const SYS_KEY = 'qwen-system-prompt';
+const TOOLS_BASE = 'http://localhost:8081';
+const TOOL_DEFS = [
+  {type:'function',function:{name:'read_file',description:'Read a file from the workspace directory (~/qwen-workspace/).',parameters:{type:'object',properties:{path:{type:'string',description:'File path relative to workspace'}},required:['path']}}},
+  {type:'function',function:{name:'write_file',description:'Write content to a file in the workspace directory. Creates parent directories as needed.',parameters:{type:'object',properties:{path:{type:'string',description:'File path relative to workspace'},content:{type:'string',description:'File content to write'}},required:['path','content']}}},
+  {type:'function',function:{name:'list_directory',description:'List files and directories in the workspace directory (~/qwen-workspace/).',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path relative to workspace (use empty string for root)'}},required:['path']}}},
+  {type:'function',function:{name:'run_shell',description:'Execute a shell command in the workspace directory. Returns stdout, stderr, and return code.',parameters:{type:'object',properties:{command:{type:'string',description:'Shell command to execute'}},required:['command']}}}
+];
+const DEFAULT_SYS_PROMPT = `You are a helpful, knowledgeable assistant. Be direct and complete. When thinking through a problem, stay focused — avoid repeating yourself or going in circles. Always produce a full, concrete response: if writing code, make it complete and runnable; if explaining something, end with a clear conclusion. Never produce an empty response.`;
+let systemPrompt = localStorage.getItem(SYS_KEY) ?? DEFAULT_SYS_PROMPT;
+
 let messages = [];
-let abortController = null;
-let currentAssistantEl = null;
+const liveGenerations = new Map(); // sessionId → {ctrl, msgs, turns, msgEl, model, ctx, lastStatus}
+const pendingRetries = new Map();  // sessionId → text — queued retries for background sessions
+let currentSessionId = null;
+let sidebarOpen = true;
+
+// ── Token viz ──────────────────────────────────────────────────────────────────
+const tok = { ctx: 32768, mode: 'totals', turns: [], lastPrompt: 0, lastEval: 0 };
+
+const fmtTok = n => n >= 1000 ? (n/1000).toFixed(1)+'k' : String(n||0);
+const estimateTokens = t => Math.max(1, Math.ceil(t.length / 3.5));
+
+async function fetchContextWindow(name) {
+  try {
+    const r = await fetch(`${OLLAMA_BASE}/api/show`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name}) });
+    const d = await r.json();
+    const info = d.model_info || {};
+    const k = ['qwen3.context_length','llama.context_length','general.context_length'].find(k=>info[k])
+            || Object.keys(info).find(k=>k.includes('context_length'));
+    const v = k ? parseInt(info[k]) : 0;
+    tok.ctx = v > 0 ? v : 32768;
+  } catch { tok.ctx = 32768; }
+  updateViz();
+}
+
+function setVizMode(mode) {
+  tok.mode = mode;
+  document.getElementById('tab-totals').classList.toggle('active', mode==='totals');
+  document.getElementById('tab-history').classList.toggle('active', mode==='history');
+  document.getElementById('viz-totals-wrap').style.display  = mode==='totals'  ? '' : 'none';
+  document.getElementById('viz-history-wrap').style.display = mode==='history' ? '' : 'none';
+  updateViz();
+}
+
+function updateViz() {
+  const ctx = tok.ctx;
+  let u=0, th=0, a=0;
+  for (const t of tok.turns) {
+    const n = t.actual ?? t.est;
+    if (t.role==='user') u+=n; else { a+=n; th+=t.think; }
+  }
+  const total = u+th+a, free = Math.max(0, ctx-total);
+  const pct = n => (Math.min(n/ctx,1)*100).toFixed(2)+'%';
+
+  if (tok.mode==='totals') {
+    document.getElementById('bar-user').style.width  = pct(u);
+    document.getElementById('bar-think').style.width = pct(th);
+    document.getElementById('bar-asst').style.width  = pct(a);
+    document.getElementById('leg-user').textContent  = fmtTok(u);
+    document.getElementById('leg-think').textContent = fmtTok(th);
+    document.getElementById('leg-asst').textContent  = fmtTok(a);
+    document.getElementById('leg-free').textContent  = fmtTok(free);
+    document.getElementById('leg-ctx').textContent   = fmtTok(ctx);
+  } else {
+    const bar = document.getElementById('history-bar');
+    bar.innerHTML = '';
+    tok.turns.forEach((t, i) => {
+      const n = t.actual ?? t.est;
+      if (t.role==='assistant' && t.think>0) {
+        const s = document.createElement('div');
+        s.className='hist-seg hist-think'; s.style.width=(Math.max(t.think,1)/ctx*100).toFixed(3)+'%';
+        s.title=`Turn ${Math.ceil((i+1)/2)} thinking: ~${fmtTok(t.think)} tok`; bar.appendChild(s);
+      }
+      const s = document.createElement('div');
+      s.className=`hist-seg ${t.role==='user'?'hist-user':'hist-asst'}`;
+      s.style.width=(Math.max(n,1)/ctx*100).toFixed(3)+'%';
+      s.title=`${t.role==='user'?'You':'Assistant'} (msg ${Math.floor(i/2)+1}): ~${fmtTok(n)} tok`;
+      bar.appendChild(s);
+    });
+    document.getElementById('history-legend').textContent = tok.turns.length===0
+      ? 'no messages yet'
+      : `${fmtTok(total)} / ${fmtTok(ctx)} · ${Math.round(total/ctx*100)}% used`;
+  }
+}
+
+// ── Session storage ────────────────────────────────────────────────────────────
+function getSessions() {
+  try { return JSON.parse(localStorage.getItem(SESSIONS_KEY) || '[]'); } catch { return []; }
+}
+function saveSessions(sessions) {
+  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
+}
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+}
+function sessionTitle(msgs) {
+  const first = msgs.find(m => m.role==='user');
+  if (!first) return 'New chat';
+  return first.content.slice(0,48) + (first.content.length>48?'…':'');
+}
+
+function saveSession(id, msgs, turns, model, ctx) {
+  if (!msgs.length) return;
+  const sessions = getSessions();
+  const idx = sessions.findIndex(s => s.id===id);
+  const entry = {
+    id,
+    title: sessionTitle(msgs),
+    created: idx>=0 ? sessions[idx].created : Date.now(),
+    updated: Date.now(),
+    model,
+    tokCtx: ctx,
+    tokTurns: [...turns],
+    messages: [...msgs],
+  };
+  if (idx>=0) sessions[idx] = entry;
+  else sessions.unshift(entry);
+  saveSessions(sessions);
+  renderSessionList();
+}
+function saveCurrentSession() {
+  saveSession(currentSessionId, messages, tok.turns,
+    document.getElementById('model-select').value, tok.ctx);
+}
+
+function loadSession(id) {
+  if (id === currentSessionId) return;
+  // Save departing session only if it's not live (live sessions auto-save on completion)
+  if (messages.length && !liveGenerations.has(currentSessionId)) saveCurrentSession();
+
+  const gen = liveGenerations.get(id);
+  if (gen) {
+    // Re-attach to a live generation — don't abort, just reconnect
+    currentSessionId = id;
+    messages = gen.msgs;
+    tok.turns = gen.turns;
+    tok.ctx = gen.ctx || 32768;
+    tok.lastPrompt = 0; tok.lastEval = 0;
+    const sel = document.getElementById('model-select');
+    if (gen.model && sel.querySelector(`option[value="${gen.model}"]`)) sel.value = gen.model;
+    const container = document.getElementById('messages');
+    container.innerHTML = '';
+    let lastModel = null;
+    gen.msgs.forEach(m => {
+      if (m.role === '_summary') { addSummaryBlock(m.content, m._count || 0); return; }
+      if (m.model && m.model !== lastModel && lastModel !== null) addModelDivider(m.model);
+      if (m.model) lastModel = m.model;
+      addMessage(m.role, renderMarkdown(m.content), m.content, m.model || gen.model);
+    });
+    container.appendChild(gen.msgEl); // re-attach live streaming element
+    container.scrollTop = container.scrollHeight;
+    updateViz();
+    syncActionBtn();
+    renderSessionList();
+    setStatus(gen.lastStatus || 'Generating…');
+    return;
+  }
+
+  const s = getSessions().find(s=>s.id===id);
+  if (!s) return;
+  currentSessionId = s.id;
+  messages = [...s.messages];
+  tok.turns = [...(s.tokTurns||[])];
+  tok.ctx = s.tokCtx || 32768;
+  tok.lastPrompt = 0; tok.lastEval = 0;
+  updateViz();
+  const sel = document.getElementById('model-select');
+  if (s.model && sel.querySelector(`option[value="${s.model}"]`)) sel.value = s.model;
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+  let lastModel = null;
+  messages.forEach(m => {
+    if (m.role === '_summary') { addSummaryBlock(m.content, m._count || 0); return; }
+    if (m.model && m.model !== lastModel && lastModel !== null) addModelDivider(m.model);
+    if (m.model) lastModel = m.model;
+    addMessage(m.role, renderMarkdown(m.content), m.content, m.model || s.model || '');
+  });
+  syncActionBtn();
+  renderSessionList();
+  const pendingText = pendingRetries.get(id);
+  if (pendingText) {
+    pendingRetries.delete(id);
+    setStatus('Retrying without thinking…');
+    setTimeout(() => { document.getElementById('input').value = pendingText; sendMessage(true); }, 100);
+  } else {
+    setStatus('');
+  }
+}
+
+function newChat() {
+  // Don't abort live generations — let them finish in the background
+  if (messages.length && !liveGenerations.has(currentSessionId)) saveCurrentSession();
+  currentSessionId = uid();
+  messages = [];
+  tok.turns = []; tok.lastPrompt = 0; tok.lastEval = 0;
+  updateViz();
+  const container = document.getElementById('messages');
+  container.innerHTML = '';
+  container.appendChild(createEmptyState());
+  syncActionBtn();
+  renderSessionList();
+  const n = document.getElementById('model-select').options.length;
+  setStatus(n ? `${n} model${n>1?'s':''} available` : '');
+  document.getElementById('input').focus();
+}
+
+function deleteSession(id, e) {
+  e.stopPropagation();
+  // Abort if this session is live
+  const gen = liveGenerations.get(id);
+  if (gen) { gen.ctrl.abort(); liveGenerations.delete(id); }
+  const sessions = getSessions().filter(s=>s.id!==id);
+  saveSessions(sessions);
+  if (id===currentSessionId) newChat();
+  else renderSessionList();
+}
+
+function relativeTime(ts) {
+  const d = Date.now()-ts, m=60000, h=3600000, day=86400000;
+  if (d<m) return 'just now';
+  if (d<h) return `${Math.floor(d/m)}m ago`;
+  if (d<day) return `${Math.floor(d/h)}h ago`;
+  if (d<7*day) return `${Math.floor(d/day)}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+function renderSessionList(query='') {
+  const list = document.getElementById('session-list');
+  list.innerHTML = '';
+  const q = query.toLowerCase().trim();
+
+  // Include live (unsaved) sessions at the top
+  const savedIds = new Set(getSessions().map(s=>s.id));
+  const liveSessions = [...liveGenerations.entries()]
+    .filter(([id]) => !savedIds.has(id))
+    .map(([id, gen]) => ({
+      id, _live: true,
+      title: gen.msgs.find(m=>m.role==='user')?.content?.slice(0,40) || 'Generating…',
+      updated: Date.now(), model: gen.model,
+      tokTurns: gen.turns, tokCtx: gen.ctx || 32768, messages: gen.msgs
+    }));
+
+  let sessions = [...liveSessions, ...getSessions()];
+
+  if (q) {
+    sessions = sessions.filter(s =>
+      s.title.toLowerCase().includes(q) ||
+      s.messages.some(m => m.content.toLowerCase().includes(q))
+    );
+  }
+
+  if (!sessions.length) {
+    list.innerHTML = `<div style="padding:12px 8px;font-size:12px;color:var(--muted)">${q?'No results':'No saved chats yet'}</div>`;
+    return;
+  }
+
+  // Group by Today / This week / Older
+  const now = Date.now(), day=86400000, week=7*day;
+  const groups = [{label:'Today',items:[]},{label:'This week',items:[]},{label:'Older',items:[]}];
+  for (const s of sessions) {
+    const age = now - s.updated;
+    if (age<day) groups[0].items.push(s);
+    else if (age<week) groups[1].items.push(s);
+    else groups[2].items.push(s);
+  }
+
+  for (const g of groups) {
+    if (!g.items.length) continue;
+    const lbl = document.createElement('div');
+    lbl.className = 'session-group-label';
+    lbl.textContent = g.label;
+    list.appendChild(lbl);
+
+    for (const s of g.items) {
+      const isLive = liveGenerations.has(s.id);
+      const div = document.createElement('div');
+      div.className = 'session-item' + (s.id===currentSessionId?' active':'') + (isLive?' generating':'');
+      div.onclick = () => loadSession(s.id);
+
+      let title = s.title;
+      if (q) {
+        const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+        title = title.replace(re, m=>`<mark>${m}</mark>`);
+      }
+
+      const turns = s.tokTurns || [];
+      const ctx = s.tokCtx || 32768;
+      const used = turns.reduce((sum, t) => sum + (t.actual ?? t.est) + t.think, 0);
+      const pct = Math.min(100, Math.round(used / ctx * 100));
+      const modelShort = (s.model || '').replace(/:latest$/,'');
+      const ctxColor = pct > 85 ? '#f87171' : pct > 60 ? '#f59e0b' : 'var(--tok-asst)';
+      const msgCount = Math.ceil(s.messages.filter(m=>m.role==='user').length);
+
+      div.innerHTML = `
+        <div class="session-info">
+          <div class="session-title">${isLive?'<span class="gen-dot"></span>':''}${title}</div>
+          <div class="session-meta">
+            ${modelShort ? `<span class="session-model">${modelShort}</span>` : ''}
+            <span>${relativeTime(s.updated)} · ${msgCount} msg</span>
+          </div>
+          ${used > 0 ? `<div class="session-ctx-bar"><div class="session-ctx-fill" style="width:${pct}%;background:${ctxColor}" title="${pct}% context used"></div></div>` : ''}
+        </div>
+        <button class="session-del" title="Delete" onclick="deleteSession('${s.id}',event)">×</button>`;
+      list.appendChild(div);
+    }
+  }
+}
+
+// ── Sidebar toggle ─────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  sidebarOpen = !sidebarOpen;
+  document.getElementById('sidebar').classList.toggle('collapsed', !sidebarOpen);
+}
 
 // ── Model loading ──────────────────────────────────────────────────────────────
+function preloadModel(modelId) {
+  if (!modelId) return;
+  fetch(`${OLLAMA_BASE}/api/generate`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({model: modelId, prompt: '', stream: false, keep_alive: '30m'})
+  }).catch(()=>{});
+}
+
 async function loadModels() {
   const sel = document.getElementById('model-select');
   try {
@@ -374,57 +932,53 @@ async function loadModels() {
     const data = await res.json();
     const models = data.models || [];
     sel.innerHTML = models.length
-      ? models.map(m => `<option value="${m.name}">${m.name}</option>`).join('')
+      ? models.map(m=>`<option value="${m.name}">${m.name}</option>`).join('')
       : '<option value="">No models found</option>';
-    // Prefer qwen3:8b, then any qwen3, then first model
-    const qwen8b = models.find(m => m.name === 'qwen3:8b');
-    const qwen = models.find(m => m.name.includes('qwen3'));
-    if (qwen8b) sel.value = qwen8b.name;
-    else if (qwen) sel.value = qwen.name;
+    const qwen8b = models.find(m=>m.name==='qwen3:8b');
+    const qwen   = models.find(m=>m.name.includes('qwen3'));
+    if (qwen8b) sel.value=qwen8b.name;
+    else if (qwen) sel.value=qwen.name;
     setStatus(models.length ? `${models.length} model${models.length>1?'s':''} available` : 'No models — run: ollama pull qwen3:8b');
-  } catch(e) {
-    sel.innerHTML = '<option value="">Cannot reach Ollama</option>';
-    setStatus('⚠ Cannot connect to Ollama (http://localhost:11434)');
+    if (sel.value) { fetchContextWindow(sel.value); preloadModel(sel.value); }
+  } catch {
+    sel.innerHTML='<option value="">Cannot reach Ollama</option>';
+    setStatus('⚠ Cannot connect to Ollama');
   }
+  sel.onchange = () => {
+    if (messages.length > 0 && sel.value) {
+      addModelDivider(sel.value);
+    }
+    tok.lastPrompt=0; tok.lastEval=0;
+    if (sel.value) { fetchContextWindow(sel.value); preloadModel(sel.value); }
+  };
 }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────────
-function setStatus(msg) {
-  document.getElementById('status').textContent = msg;
-}
+function setStatus(msg) { document.getElementById('status').textContent=msg; }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,200)+'px'; }
+function handleKey(e) { if (e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();} }
+function fillInput(btn) { const i=document.getElementById('input'); i.value=btn.textContent; autoResize(i); i.focus(); }
 
-function autoResize(el) {
-  el.style.height = 'auto';
-  el.style.height = Math.min(el.scrollHeight, 200) + 'px';
-}
+function clearChat() { newChat(); }
 
-function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+function syncActionBtn() {
+  const gen = liveGenerations.get(currentSessionId);
+  document.getElementById('send-icon').style.display = gen ? 'none' : '';
+  document.getElementById('stop-icon').style.display = gen ? '' : 'none';
+  const btn = document.getElementById('action-btn');
+  btn.className = gen ? 'stop' : 'send';
+  btn.disabled = false;
 }
-
-function fillInput(btn) {
-  const inp = document.getElementById('input');
-  inp.value = btn.textContent;
-  autoResize(inp);
-  inp.focus();
-}
-
-function clearChat() {
-  messages = [];
-  const container = document.getElementById('messages');
-  container.innerHTML = '';
-  container.appendChild(createEmptyState());
+function handleAction() {
+  if (liveGenerations.has(currentSessionId)) stopGeneration();
+  else sendMessage();
 }
 
 function createEmptyState() {
-  const existing = document.getElementById('empty-state');
-  if (existing) return existing;
-  const div = document.createElement('div');
-  div.className = 'empty-state';
-  div.id = 'empty-state';
-  div.innerHTML = `
-    <div class="logo">✦</div>
-    <h2>Qwen Local</h2>
+  const d = document.createElement('div');
+  d.className='empty-state'; d.id='empty-state';
+  d.innerHTML=`
+    <div class="logo">✦</div><h2>Qwen Local</h2>
     <p>Running locally on your RTX 4060. Private, fast, free.</p>
     <div class="suggestions">
       <button class="suggestion-btn" onclick="fillInput(this)">Explain quantum entanglement simply</button>
@@ -432,223 +986,560 @@ function createEmptyState() {
       <button class="suggestion-btn" onclick="fillInput(this)">What are the best Rust crates for async?</button>
       <button class="suggestion-btn" onclick="fillInput(this)">Critique my thinking on X</button>
     </div>`;
-  return div;
+  return d;
 }
 
-function addMessage(role, contentHtml, raw) {
+function modelDisplayName(modelId) {
+  const m = modelId || document.getElementById('model-select').value || '';
+  const base = m.split(':')[0].split('/').pop(); // strip registry prefix
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+function supportsThinking(modelId) {
+  const m = (modelId || document.getElementById('model-select').value || '').toLowerCase();
+  return m.includes('qwen3') || m.includes('deepseek-r1') || m.includes('qwq');
+}
+
+function addModelDivider(modelName) {
+  document.getElementById('empty-state')?.remove();
+  const div = document.createElement('div');
+  div.className = 'model-switch-divider';
+  div.textContent = `switched to ${modelName}`;
+  document.getElementById('messages').appendChild(div);
+}
+
+const COPY_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+const CHECK_ICON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+
+function copyMessage(btn) {
+  const el = btn.closest('.msg-body').querySelector('.msg-content');
+  navigator.clipboard.writeText(el.dataset.raw || el.innerText);
+  btn.innerHTML=CHECK_ICON+'copied'; btn.style.opacity='1';
+  setTimeout(()=>{btn.innerHTML=COPY_ICON+'copy';btn.style.opacity='';},2000);
+}
+
+function addSummaryBlock(text, count) {
   document.getElementById('empty-state')?.remove();
   const container = document.getElementById('messages');
   const wrap = document.createElement('div');
   wrap.className = 'message';
-  wrap.innerHTML = `
-    <div class="avatar ${role}">${role === 'user' ? '👤' : '✦'}</div>
-    <div class="msg-body">
-      <div class="msg-role">${role === 'user' ? 'You' : 'Qwen'}</div>
-      <div class="msg-content">${contentHtml}</div>
-    </div>`;
+  const div = document.createElement('div');
+  div.className = 'summary-block';
+  div.innerHTML = `
+    <div class="summary-header" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+      <span class="chevron">▾</span>
+      <span>📋 Earlier conversation (${count} message${count!==1?'s':''} compacted)</span>
+    </div>
+    <div class="summary-body">${text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+  wrap.appendChild(div);
   container.appendChild(wrap);
   container.scrollTop = container.scrollHeight;
+}
+
+function addMessage(role, html, raw='', modelId='') {
+  if (role === '_summary') { addSummaryBlock(raw, 0); return null; }
+  document.getElementById('empty-state')?.remove();
+  const container = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className='message';
+  const roleLabel = role==='user' ? 'You' : modelDisplayName(modelId);
+  wrap.innerHTML=`
+    <div class="avatar ${role}">${role==='user'?'👤':'✦'}</div>
+    <div class="msg-body">
+      <div class="msg-header">
+        <div class="msg-role">${roleLabel}</div>
+        <button class="msg-copy-btn" onclick="copyMessage(this)">${COPY_ICON}copy</button>
+      </div>
+      <div class="msg-content" data-raw="${raw.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}">${html}</div>
+    </div>`;
+  container.appendChild(wrap);
+  container.scrollTop=container.scrollHeight;
   return wrap.querySelector('.msg-content');
 }
 
 function renderMarkdown(text) {
-  // Protect display math blocks from being split by the markdown parser
-  // Convert $$\n...\n$$ into a single-line <div class="math-block"> so marked doesn't mangle it
-  const protected_ = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) => {
-    const escaped = inner.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<div class="math-block">$$${escaped}$$</div>`;
+  const p = text.replace(/\$\$([\s\S]*?)\$\$/g,(_,inner)=>{
+    const e=inner.trim().replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return `<div class="math-block">$$${e}$$</div>`;
   });
-  return marked.parse(protected_, { breaks: true, gfm: true });
+  return marked.parse(p,{breaks:true,gfm:true});
 }
 
 function highlightCode(el) {
-  el.querySelectorAll('pre code').forEach(block => {
+  el.querySelectorAll('pre code').forEach(block=>{
     hljs.highlightElement(block);
-    const pre = block.parentElement;
-    if (!pre.querySelector('.copy-btn')) {
-      const btn = document.createElement('button');
-      btn.className = 'copy-btn';
-      btn.textContent = 'copy';
-      btn.onclick = () => {
-        navigator.clipboard.writeText(block.textContent);
-        btn.textContent = 'copied!';
-        setTimeout(() => btn.textContent = 'copy', 2000);
-      };
-      pre.insertBefore(btn, pre.firstChild);
+    const pre=block.parentElement;
+    if(!pre.querySelector('.copy-btn')){
+      const btn=document.createElement('button');
+      btn.className='copy-btn'; btn.textContent='copy';
+      btn.onclick=()=>{ navigator.clipboard.writeText(block.textContent); btn.textContent='copied!'; setTimeout(()=>btn.textContent='copy',2000); };
+      pre.insertBefore(btn,pre.firstChild);
     }
   });
-  if (typeof renderMathInElement !== 'undefined') {
-    renderMathInElement(el, {
-      delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false },
-        { left: '\\[', right: '\\]', display: true },
-      ],
-      throwOnError: false,
-    });
-  }
+  if(typeof renderMathInElement!=='undefined')
+    renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},{left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true}],throwOnError:false});
 }
 
-// ── Thinking block ─────────────────────────────────────────────────────────────
-function createThinkingBlock(thinkText, collapsed = true) {
-  const div = document.createElement('div');
-  div.className = 'thinking-block';
-  div.innerHTML = `
-    <div class="thinking-header ${collapsed ? 'collapsed' : ''}" onclick="toggleThinking(this)">
-      <span class="chevron">▾</span>
-      <span>Thinking</span>
+function createThinkingBlock(collapsed=true) {
+  const div=document.createElement('div'); div.className='thinking-block';
+  div.innerHTML=`
+    <div class="thinking-header${collapsed?' collapsed':''}" onclick="toggleThinking(this)">
+      <span class="chevron">▾</span><span>Thinking</span>
     </div>
-    <div class="thinking-body ${collapsed ? 'hidden' : ''}">${thinkText}</div>`;
+    <div class="thinking-body${collapsed?' hidden':''}"></div>`;
   return div;
 }
+function toggleThinking(h){ h.classList.toggle('collapsed'); h.nextElementSibling.classList.toggle('hidden'); }
 
-function toggleThinking(header) {
-  header.classList.toggle('collapsed');
-  header.nextElementSibling.classList.toggle('hidden');
-}
-
-// ── Streaming chat ─────────────────────────────────────────────────────────────
-async function sendMessage() {
+// ── Send / stream ──────────────────────────────────────────────────────────────
+async function sendMessage(overrideNoThink = false) {
   const inp = document.getElementById('input');
   const text = inp.value.trim();
-  if (!text || abortController) return;
-
+  if (!text || liveGenerations.has(currentSessionId)) return;
   const model = document.getElementById('model-select').value;
   if (!model) { setStatus('Select a model first'); return; }
 
-  const thinkingEnabled = document.getElementById('thinking-check').checked;
-  const thinkBudget = parseInt(document.getElementById('think-budget').value) || 0;
+  if (!currentSessionId) currentSessionId = uid();
 
-  inp.value = '';
-  inp.style.height = 'auto';
-  document.getElementById('send-btn').disabled = true;
-  document.getElementById('stop-btn').style.display = 'flex';
+  // Close over session state — navigation reassigns globals but not these refs.
+  const mySessionId = currentSessionId;
+  const myMsgs = messages;
+  const myTurns = tok.turns;
+  const myCtx = tok.ctx;
+  const isActive = () => currentSessionId === mySessionId;
 
-  messages.push({ role: 'user', content: text });
-  addMessage('user', renderMarkdown(text));
+  const thinkOn = document.getElementById('thinking-check').checked;
+  const budget  = parseInt(document.getElementById('think-budget').value)||0;
+  const useThinking = !overrideNoThink && thinkOn && supportsThinking(model);
+  // Hard cap: abort thinking exactly at budget (Ollama ignores thinking_budget hint)
+  const hardThinkCap = budget > 0 ? Math.min(budget, 4096) : 4096;
 
-  const contentEl = addMessage('assistant', '');
-  currentAssistantEl = contentEl;
-  contentEl.innerHTML = '<span class="cursor"></span>';
+  inp.value=''; inp.style.height='auto';
 
-  abortController = new AbortController();
-  setStatus('Generating…');
+  myMsgs.push({role:'user',content:text});
+  const userMsgEl = addMessage('user',renderMarkdown(text),text);
+  myTurns.push({role:'user',est:estimateTokens(text),actual:null,think:0});
+  updateViz();
 
-  let fullText = '';
-  let thinkText = '';
-  let inThink = false;
-  let thinkDone = false;
+  if (document.getElementById('tools-check')?.checked) {
+    const ctrl = new AbortController();
+    liveGenerations.set(mySessionId,{ctrl,msgs:myMsgs,turns:myTurns,model,ctx:myCtx,msgEl:null,lastStatus:'Tool mode'});
+    syncActionBtn(); renderSessionList();
+    await sendWithTools(myMsgs,myTurns,myCtx,mySessionId,model,isActive);
+    return;
+  }
+
+  const contentEl = addMessage('assistant','','',model);
+  contentEl.innerHTML='';
+  const cursorEl = document.createElement('span');
+  cursorEl.className='cursor';
+  contentEl.appendChild(cursorEl);
+  const ctrl = new AbortController();
+  const genState = { ctrl, msgs:myMsgs, turns:myTurns, model, ctx:myCtx, msgEl:contentEl.closest('.message'), lastStatus:'' };
+  liveGenerations.set(mySessionId, genState);
+  syncActionBtn();
+  renderSessionList();
+
+  let fullText='', thinkText='', thinkTokens=0;
+  let thinkCapHit = false;
+
+  let stageTicker = null;
+  const t0 = performance.now();
+  function startStage(label) {
+    if (stageTicker) clearInterval(stageTicker);
+    stageTicker = setInterval(() => {
+      const s = Math.round((performance.now()-t0)/1000);
+      const st = `${label}… ${s}s`;
+      genState.lastStatus = st;
+      if (isActive()) setStatus(st);
+    }, 200);
+  }
+  function stopStage() { if (stageTicker) { clearInterval(stageTicker); stageTicker = null; } }
+
+  startStage('Connecting');
+
+  // Build API message list: inject any compaction summary into system prompt, strip _summary marker
+  const sp = systemPrompt.trim();
+  const summaryEntry = myMsgs.find(m => m.role === '_summary');
+  const conversationMsgs = myMsgs.filter(m => m.role !== '_summary');
+  const fullSys = [sp, summaryEntry ? `\n\n[EARLIER CONVERSATION SUMMARY]\n${summaryEntry.content}` : ''].filter(Boolean).join('');
+  const apiMsgs = fullSys ? [{role:'system', content:fullSys}, ...conversationMsgs] : conversationMsgs;
 
   try {
-    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      signal: abortController.signal,
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        options: { num_predict: 4096 },
-        think: thinkingEnabled,
-        ...(thinkingEnabled && thinkBudget > 0 ? { thinking_budget: thinkBudget } : {}),
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      signal:ctrl.signal,
+      body:JSON.stringify({
+        model, messages:apiMsgs, stream:true, options:{num_predict:4096},
+        ...(useThinking ? {think:true, ...(budget>0?{thinking_budget:budget}:{})} : supportsThinking(model) ? {think:false} : {})
       }),
     });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let tokenCount = 0;
-    let thinkTokens = 0;
-    const t0 = performance.now();
-    let thinkBlockEl = null;
-    let thinkBodyEl = null;
-    let mdDivEl = null;
+    startStage('Evaluating prompt');
+    const reader=res.body.getReader(), decoder=new TextDecoder();
+    let tokenCount=0;
+    let firstToken=true;
+    let thinkBlockEl=null, thinkBodyEl=null, mdDivEl=null;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const lines = decoder.decode(value).split('\n').filter(Boolean);
-      for (const line of lines) {
-        let chunk;
-        try { chunk = JSON.parse(line); } catch { continue; }
-        if (chunk.done) {
-          const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-          const thinkInfo = thinkTokens > 0 ? ` · 🧠 ${thinkTokens} think` : '';
-          setStatus(`${tokenCount} tokens${thinkInfo} · ${elapsed}s · ${(tokenCount/elapsed).toFixed(0)} tok/s`);
-          break;
-        }
-        // Ollama returns thinking in message.thinking, content in message.content
-        const thinkDelta = chunk.message?.thinking || '';
-        const delta = chunk.message?.content || '';
-        if (!thinkDelta && !delta) continue;
+    outer: while(true){
+      const {done,value}=await reader.read(); if(done)break;
+      for(const line of decoder.decode(value).split('\n').filter(Boolean)){
+        let chunk; try{chunk=JSON.parse(line);}catch{continue;}
 
-        if (thinkDelta) {
-          thinkTokens++;
-          thinkText += thinkDelta;
-          // Lazy-create thinking block, stream text directly into body element
-          if (!thinkBlockEl) {
-            thinkBlockEl = createThinkingBlock('', false);
-            thinkBodyEl = thinkBlockEl.querySelector('.thinking-body');
-            contentEl.innerHTML = '';
-            contentEl.appendChild(thinkBlockEl);
+        if(chunk.done){
+          const elapsed=Math.round((performance.now()-t0)/1000);
+          const doneStatus=`${tokenCount} tok${thinkTokens>0?` · 🧠 ${thinkTokens} think`:''} · ${elapsed}s · ${elapsed>0?(tokenCount/elapsed).toFixed(0):0} tok/s`;
+          genState.lastStatus=doneStatus;
+          if(isActive()) setStatus(doneStatus);
+          tok.lastPrompt=chunk.prompt_eval_count||0; tok.lastEval=chunk.eval_count||tokenCount;
+          if(myTurns.length>=2&&tok.lastPrompt>0){
+            const prev=myTurns.slice(0,-1).reduce((s,t)=>s+(t.actual??t.est)+t.think,0);
+            const ua=tok.lastPrompt-prev; if(ua>0)myTurns[myTurns.length-1].actual=ua;
           }
-          if (thinkBodyEl) thinkBodyEl.textContent = thinkText;
-          setStatus(`🧠 Thinking… ${thinkTokens} tokens`);
+          myTurns.push({role:'assistant',est:estimateTokens(fullText),actual:tok.lastEval,think:thinkTokens});
+          if(isActive()) updateViz(); break outer;
         }
-        if (delta) {
-          tokenCount++;
-          fullText += delta;
-          // Collapse thinking block once response starts
-          if (thinkBlockEl && thinkBodyEl) {
+
+        const td=chunk.message?.thinking||'', d=chunk.message?.content||'';
+        if(!td&&!d)continue;
+        if(firstToken){ stopStage(); firstToken=false; }
+        if(td){
+          thinkTokens++; thinkText+=td;
+          if(thinkTokens >= hardThinkCap){
+            thinkCapHit = true;
+            ctrl.abort();
+            break outer;
+          }
+          if(!thinkBlockEl){
+            thinkBlockEl=createThinkingBlock(false);
+            thinkBodyEl=thinkBlockEl.querySelector('.thinking-body');
+            contentEl.innerHTML=''; contentEl.appendChild(thinkBlockEl);
+          }
+          thinkBodyEl.textContent=thinkText;
+          {
+            const ts=Math.round((performance.now()-t0)/1000);
+            const thinkStatus=`🧠 Thinking… ${thinkTokens} tok · ${ts}s`;
+            genState.lastStatus=thinkStatus;
+            if(isActive()) setStatus(thinkStatus);
+          }
+        }
+        if(d){
+          tokenCount++; fullText+=d;
+          {
+            const elapsed=Math.round((performance.now()-t0)/1000);
+            const rate=elapsed>0?(tokenCount/elapsed).toFixed(0):'…';
+            const tokStatus=`${tokenCount} tok · ${elapsed}s · ${rate} tok/s`;
+            genState.lastStatus=tokStatus;
+            if(isActive()) setStatus(tokStatus);
+          }
+          if(thinkBlockEl){
             thinkBlockEl.querySelector('.thinking-header')?.classList.add('collapsed');
-            thinkBodyEl.classList.add('hidden');
-            thinkBlockEl = null; // stop updating it
+            thinkBodyEl.classList.add('hidden'); thinkBlockEl=null;
           }
-          // Lazy-create/update response div
-          if (!mdDivEl) {
-            mdDivEl = document.createElement('div');
-            contentEl.appendChild(mdDivEl);
-          }
-          mdDivEl.innerHTML = renderMarkdown(fullText);
-          highlightCode(mdDivEl);
+          if(!mdDivEl){mdDivEl=document.createElement('div');contentEl.appendChild(mdDivEl);}
+          mdDivEl.innerHTML=renderMarkdown(fullText); highlightCode(mdDivEl);
         }
-        if (!chunk.done) {
-          const cursor = document.createElement('span');
-          cursor.className = 'cursor';
-          contentEl.appendChild(cursor);
-        }
-        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        if(!chunk.done) contentEl.appendChild(cursorEl);
+        if(isActive()) document.getElementById('messages').scrollTop=document.getElementById('messages').scrollHeight;
       }
     }
 
-    // Remove trailing cursor, ensure final render is clean
-    contentEl.querySelectorAll('.cursor').forEach(c => c.remove());
-    if (!fullText && !thinkText) {
-      contentEl.innerHTML = '<span style="color:var(--text-muted)">…</span>';
+    contentEl.querySelectorAll('.cursor').forEach(c=>c.remove());
+    contentEl.dataset.raw=fullText;
+    if(!fullText){
+      if(thinkText && !overrideNoThink){
+        // Thought but gave no answer — retry without thinking
+        thinkCapHit = true;
+        userMsgEl.closest('.message')?.remove();
+        contentEl.closest('.message')?.remove();
+        myMsgs.pop();
+        if(myTurns.length >= 2) myTurns.splice(-2, 2);
+        if(isActive()){
+          setStatus('No answer — retrying without thinking…'); updateViz();
+          setTimeout(() => { inp.value = text; sendMessage(true); }, 50);
+        } else {
+          // Background session: queue retry for when user switches back; don't misfire to active session
+          pendingRetries.set(mySessionId, text);
+          saveSession(mySessionId, myMsgs, myTurns, model, myCtx);
+        }
+        return;
+      }
+      contentEl.innerHTML = `<button class="retry-btn" onclick="retryLast(this)">⚠ No response — retry</button>`;
     }
-    messages.push({ role: 'assistant', content: fullText || '' });
+    myMsgs.push({role:'assistant',content:fullText||'',model});
+    saveSession(mySessionId, myMsgs, myTurns, model, myCtx);
+    if (isActive()) compactContext();
 
   } catch(e) {
-    if (e.name === 'AbortError') {
-      setStatus('Stopped');
+    stopStage();
+    contentEl.dataset.raw=fullText;
+    if(e.name==='AbortError'){
+      if(thinkCapHit){
+        // Thinking went over hard cap — retry without thinking
+        userMsgEl.closest('.message')?.remove();
+        contentEl.closest('.message')?.remove();
+        myTurns.pop(); myMsgs.pop();
+        if(isActive()){
+          setStatus('Thinking limit hit — retrying without thinking…');
+          updateViz();
+          setTimeout(() => { inp.value = text; sendMessage(true); }, 50);
+        } else {
+          // Background: queue retry for when user switches back
+          pendingRetries.set(mySessionId, text);
+          saveSession(mySessionId, myMsgs, myTurns, model, myCtx);
+        }
+      } else {
+        if(isActive()) setStatus('Stopped');
+        if(fullText||thinkText){
+          myTurns.push({role:'assistant',est:estimateTokens(fullText),actual:null,think:thinkTokens});
+          myMsgs.push({role:'assistant',content:fullText||''});
+          saveSession(mySessionId, myMsgs, myTurns, model, myCtx);
+          if(isActive()) updateViz();
+        } else {
+          myTurns.pop(); myMsgs.pop();
+          if(isActive()) updateViz();
+        }
+      }
     } else {
-      setStatus('Error: ' + e.message);
-      contentEl.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`;
+      if(isActive()){
+        setStatus('Error: '+e.message);
+        contentEl.innerHTML=`<span style="color:#f87171">Error: ${e.message}</span>`;
+      }
+      myTurns.pop(); myMsgs.pop();
+      if(isActive()) updateViz();
     }
   } finally {
-    abortController = null;
-    document.getElementById('send-btn').disabled = false;
-    document.getElementById('stop-btn').style.display = 'none';
-    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+    stopStage();
+    liveGenerations.delete(mySessionId);
+    syncActionBtn();
+    renderSessionList();
+    if(isActive() && !thinkCapHit){
+      document.getElementById('messages').scrollTop=document.getElementById('messages').scrollHeight;
+      document.getElementById('input').focus();
+    }
   }
 }
 
-function stopGeneration() {
-  abortController?.abort();
+async function compactContext() {
+  const COMPACT_AT = 0.82; // trigger at 82% context used
+  const KEEP_TURNS = 4;    // always keep the last N conversation turns intact
+
+  const used = tok.turns.reduce((s,t) => s + (t.actual ?? t.est) + t.think, 0);
+  if (used / tok.ctx < COMPACT_AT) return;
+
+  // Need at least KEEP_TURNS*2 + 2 messages to compact (something to summarize + something to keep)
+  const regularMsgs = messages.filter(m => m.role !== '_summary');
+  const keepCount = KEEP_TURNS * 2;
+  if (regularMsgs.length <= keepCount) return;
+
+  const toSummarize = regularMsgs.slice(0, regularMsgs.length - keepCount);
+  const toKeep = regularMsgs.slice(regularMsgs.length - keepCount);
+
+  setStatus('Compacting context…');
+  try {
+    const model = document.getElementById('model-select').value;
+    const res = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model, stream: false,
+        messages: [
+          ...toSummarize,
+          {role:'user', content:'Please write a concise but thorough summary of our conversation so far. Cover all topics, decisions, code, and important details. This summary will replace the conversation history, so be complete.'}
+        ]
+      })
+    });
+    const data = await res.json();
+    const summary = data.message?.content?.trim();
+    if (!summary) { setStatus('Compaction failed — context unchanged'); return; }
+
+    // Replace compacted messages with summary entry
+    const summaryEntry = {role:'_summary', content:summary, _count: toSummarize.length};
+    messages.splice(0, messages.length, summaryEntry, ...toKeep);
+
+    // Trim tok.turns to match (keep the turns for toKeep messages)
+    tok.turns.splice(0, tok.turns.length - keepCount);
+    // Add a summary turn at the front with an estimated size
+    tok.turns.unshift({role:'assistant', est: estimateTokens(summary), actual: null, think: 0});
+
+    updateViz();
+    // Re-render the chat
+    const container = document.getElementById('messages');
+    container.innerHTML = '';
+    let lastModel = null;
+    messages.forEach(m => {
+      if (m.role === '_summary') { addSummaryBlock(m.content, m._count); return; }
+      if (m.model && m.model !== lastModel && lastModel !== null) addModelDivider(m.model);
+      if (m.model) lastModel = m.model;
+      addMessage(m.role, renderMarkdown(m.content), m.content, m.model || model);
+    });
+    container.scrollTop = container.scrollHeight;
+    saveCurrentSession();
+    setStatus(`Context compacted — ${toSummarize.length} messages summarized`);
+  } catch(e) {
+    setStatus('Compaction error: ' + e.message);
+  }
 }
 
+// ── Tool harness ────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function executeToolCall(name, args) {
+  const res = await fetch(`${TOOLS_BASE}/${name}`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(args)
+  });
+  if (!res.ok) throw new Error(`Tool server returned ${res.status} — is tools_server.py running?`);
+  return await res.json();
+}
+
+function formatToolResult(name, r) {
+  if (r?.error) return r.error;
+  if (name === 'read_file') return r.content ?? '';
+  if (name === 'write_file') return r.success ? `✓ Wrote ${r.bytes} bytes → ${r.path}` : r.error;
+  if (name === 'list_directory') {
+    if (!r.entries) return r.error ?? JSON.stringify(r);
+    return r.entries.length ? r.entries.map(e=>`${e.type==='dir'?'📁':'📄'} ${e.name}${e.size!=null?' ('+e.size+' B)':''}`).join('\n') : '(empty)';
+  }
+  if (name === 'run_shell') {
+    const out = [r.stdout, r.stderr?`[stderr]\n${r.stderr}`:''].filter(Boolean).join('\n').trim();
+    return (out || '(no output)') + (r.returncode ? `\n[exit ${r.returncode}]` : '');
+  }
+  return JSON.stringify(r, null, 2);
+}
+
+function addToolCallBlock(name, args, result) {
+  const container = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'message';
+  const block = document.createElement('div');
+  block.className = 'tool-call';
+  const argStr = Object.entries(args).map(([k,v])=>`${k}=${escHtml(JSON.stringify(typeof v==='string'&&v.length>50?v.slice(0,50)+'…':v))}`).join(', ');
+  const isError = !!result?.error;
+  const resultText = formatToolResult(name, result);
+  block.innerHTML = `
+    <div class="tool-call-header">🔧 <span class="tool-call-name">${escHtml(name)}</span><span class="tool-call-args">(${argStr})</span></div>
+    <div class="tool-call-result${isError?' tool-call-error':''}">${escHtml(resultText)}</div>`;
+  wrap.appendChild(block);
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendWithTools(myMsgs, myTurns, myCtx, mySessionId, model, isActive) {
+  const TOOLS_SYS = '\n\nYou have access to tools for file operations and shell commands. The workspace is ~/qwen-workspace/. All paths are relative to that directory. Use tools freely when the user asks you to create, read, or run files.';
+  const sp = systemPrompt.trim();
+  const summaryEntry = myMsgs.find(m=>m.role==='_summary');
+  const convMsgs = myMsgs.filter(m=>m.role!=='_summary');
+  const fullSys = [sp, summaryEntry?`\n\n[EARLIER CONVERSATION SUMMARY]\n${summaryEntry.content}`:'', TOOLS_SYS].filter(Boolean).join('');
+  let loopMsgs = [{role:'system',content:fullSys}, ...convMsgs];
+
+  const contentEl = addMessage('assistant','','',model);
+  const spinEl = document.createElement('span');
+  spinEl.className = 'cursor'; contentEl.appendChild(spinEl);
+
+  try {
+    let responded = false;
+    for (let i = 0; i < 10; i++) {
+      if (isActive()) setStatus(i===0?'Thinking…':'Processing tool results…');
+
+      const res = await fetch(`${OLLAMA_BASE}/api/chat`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({model, messages:loopMsgs, stream:false, tools:TOOL_DEFS, options:{num_predict:4096}})
+      });
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      const msg = data.message;
+
+      if (msg?.tool_calls?.length) {
+        loopMsgs.push({role:'assistant', content:msg.content||'', tool_calls:msg.tool_calls});
+        spinEl.remove();
+        for (const tc of msg.tool_calls) {
+          const name = tc.function.name;
+          const args = typeof tc.function.arguments==='string'
+            ? JSON.parse(tc.function.arguments) : (tc.function.arguments||{});
+          if (isActive()) setStatus(`🔧 ${name}…`);
+          let result;
+          try { result = await executeToolCall(name, args); }
+          catch(e) { result = {error:e.message}; }
+          addToolCallBlock(name, args, result);
+          loopMsgs.push({role:'tool', content:JSON.stringify(result)});
+        }
+        // re-add spinner for next call
+        contentEl.appendChild(spinEl);
+      } else {
+        const finalText = msg?.content||'';
+        spinEl.remove();
+        contentEl.dataset.raw = finalText;
+        if (finalText) {
+          const md = document.createElement('div');
+          contentEl.appendChild(md);
+          md.innerHTML = renderMarkdown(finalText);
+          highlightCode(md);
+        } else {
+          contentEl.innerHTML = `<button class="retry-btn" onclick="retryLast(this)">⚠ No response — retry</button>`;
+        }
+        myMsgs.push({role:'assistant', content:finalText, model});
+        const tc = data.eval_count||estimateTokens(finalText);
+        const elapsed = Math.round((data.total_duration||0)/1e9);
+        myTurns.push({role:'assistant', est:estimateTokens(finalText), actual:tc, think:0});
+        if (isActive()) { setStatus(`${tc} tok · ${elapsed}s`); updateViz(); }
+        saveSession(mySessionId, myMsgs, myTurns, model, myCtx);
+        responded = true;
+        break;
+      }
+    }
+    if (!responded) {
+      spinEl.remove();
+      contentEl.innerHTML = `<span style="color:#f87171">Tool loop limit reached — model called tools 10 times without producing a final response.</span>`;
+      myTurns.pop(); myMsgs.pop(); // remove the orphaned user turn
+      if (isActive()) { setStatus('Tool loop limit exceeded'); updateViz(); }
+    }
+  } catch(e) {
+    spinEl.remove();
+    if (isActive()) {
+      setStatus('Error: '+e.message);
+      contentEl.innerHTML = `<span style="color:#f87171">Error: ${escHtml(e.message)}</span>`;
+    }
+    myTurns.pop(); myMsgs.pop();
+    if (isActive()) updateViz();
+  } finally {
+    liveGenerations.delete(mySessionId);
+    syncActionBtn(); renderSessionList();
+    if (isActive()) {
+      document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+      document.getElementById('input').focus();
+    }
+  }
+}
+
+function retryLast(btn) {
+  // Called when an empty-response retry button is clicked.
+  // Removes the last user+assistant pair and re-sends without thinking.
+  if (messages.length < 2) return;
+  const userMsg = messages[messages.length-2];
+  if (!userMsg || userMsg.role !== 'user') return;
+  const text = userMsg.content;
+  messages.splice(messages.length-2, 2);
+  if (tok.turns.length >= 2) tok.turns.splice(tok.turns.length-2, 2);
+  const container = document.getElementById('messages');
+  const msgEls = container.querySelectorAll('.message');
+  // Remove last 2 message wrappers (assistant then user)
+  if (msgEls.length >= 2) { msgEls[msgEls.length-1].remove(); msgEls[msgEls.length-2].remove(); }
+  else if (msgEls.length === 1) { msgEls[0].remove(); }
+  updateViz();
+  document.getElementById('input').value = text;
+  sendMessage(true);
+}
+
+function stopGeneration() { liveGenerations.get(currentSessionId)?.ctrl?.abort(); }
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+currentSessionId = uid();
 loadModels();
+renderSessionList();
 document.getElementById('input').focus();
+document.getElementById('sys-prompt').value = systemPrompt;
 </script>
 </body>
 </html>

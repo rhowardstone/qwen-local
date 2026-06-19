@@ -119,15 +119,22 @@ ollama cp qwen3:8b  claude-haiku-4-5
 ## Uninstall
 
 ```bash
-# Remove the Ollama aliases
+# 1. Restore Claude Code to Anthropic (unset the local redirect)
+unset ANTHROPIC_BASE_URL
+unset ANTHROPIC_AUTH_TOKEN
+rm -f .env.qwen-local
+
+# 2. Remove the Ollama aliases
 ollama rm claude-sonnet-4-6
 ollama rm claude-opus-4-5
 ollama rm claude-haiku-4-5
 
-# Remove the models (frees disk space)
+# 3. Remove the models (frees disk space)
 ollama rm qwen3:8b
 ollama rm qwen3:14b
 ```
+
+> **Important:** step 1 must happen in every shell where you previously ran `source .env.qwen-local`. If you open a new terminal instead, those vars were never set there — just skip it. Without unsetting them, Claude Code will keep pointing at Ollama even after the aliases are deleted, and you'll get "model not found" errors.
 
 Ollama itself: see [ollama.com/docs](https://ollama.com).
 
