@@ -4,10 +4,15 @@
 Run alongside the chat server:
     python3 tools_server.py
 
-Provides file read/write and directory listing inside ~/qwen-workspace/
-(paths are sandbox-checked). Also exposes run_shell, which executes
-arbitrary commands with your privileges — it is NOT sandboxed.
-Only run this server while using the chat UI; stop it when not in use.
+Tools:
+  read_file / write_file / list_directory  — workspace-sandboxed (~/qwen-workspace/)
+  edit_file     — surgical find-replace on ANY absolute path (same trust as run_shell)
+  run_shell     — arbitrary shell commands; NOT sandboxed
+  screenshot    — headless Chromium screenshot of a localhost URL → workspace PNG
+  eval_js       — run JS in a headless page and return the result
+  get_page_html — return rendered DOM of a localhost URL
+
+Only run this server while actively using the chat UI.
 """
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json, os, subprocess
@@ -115,6 +120,25 @@ class ToolHandler(BaseHTTPRequestHandler):
                     ]
                 }
 
+            elif tool == 'edit_file':
+                # Surgical find-replace — accepts absolute paths (same trust as run_shell)
+                path = args.get('path', '')
+                old_text = args.get('old_text', '')
+                new_text = args.get('new_text', '')
+                if not path:
+                    return {'error': 'path is required'}
+                p = Path(path).expanduser()
+                if not p.exists():
+                    return {'error': f'File not found: {path}'}
+                content = p.read_text(errors='replace')
+                count = content.count(old_text)
+                if count == 0:
+                    return {'error': 'old_text not found in file — check for exact whitespace/indentation match'}
+                if count > 1:
+                    return {'error': f'old_text matches {count} locations — make it more specific'}
+                p.write_text(content.replace(old_text, new_text, 1))
+                return {'success': True, 'path': str(p)}
+
             elif tool == 'run_shell':
                 cmd = args.get('command', '').strip()
                 if not cmd:
@@ -126,6 +150,36 @@ class ToolHandler(BaseHTTPRequestHandler):
                     cwd=WORKSPACE, timeout=30
                 )
                 return {'stdout': r.stdout, 'stderr': r.stderr, 'returncode': r.returncode}
+
+            elif tool in ('screenshot', 'eval_js', 'get_page_html'):
+                url = args.get('url', 'http://localhost:8080/chat.html')
+                if not url.startswith(('http://localhost:', 'http://127.0.0.1:')):
+                    return {'error': 'Browser tools are restricted to localhost URLs'}
+                from playwright.sync_api import sync_playwright
+                with sync_playwright() as pw:
+                    browser = pw.chromium.launch(headless=True)
+                    page = browser.new_page(viewport={'width': 1280, 'height': 800})
+                    page.goto(url, wait_until='networkidle', timeout=15000)
+
+                    if tool == 'screenshot':
+                        filename = args.get('filename', 'screenshot.png')
+                        out = WORKSPACE / filename
+                        page.screenshot(path=str(out), full_page=args.get('full_page', False))
+                        browser.close()
+                        return {'path': str(out), 'filename': filename, 'bytes': out.stat().st_size}
+
+                    elif tool == 'eval_js':
+                        script = args.get('script', 'document.title')
+                        result = page.evaluate(script)
+                        browser.close()
+                        return {'result': result}
+
+                    else:  # get_page_html
+                        html = page.content()
+                        browser.close()
+                        cap = 40000
+                        return {'html': html[:cap], 'total_length': len(html),
+                                'truncated': len(html) > cap}
 
             else:
                 return {'error': f'Unknown tool: {tool!r}'}

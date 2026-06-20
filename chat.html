@@ -605,10 +605,14 @@ const SESSIONS_KEY = 'qwen-sessions';
 const SYS_KEY = 'qwen-system-prompt';
 const TOOLS_BASE = 'http://localhost:8081';
 const TOOL_DEFS = [
-  {type:'function',function:{name:'read_file',description:'Read a file from the workspace directory (~/qwen-workspace/).',parameters:{type:'object',properties:{path:{type:'string',description:'File path relative to workspace'}},required:['path']}}},
+  {type:'function',function:{name:'read_file',description:'Read a file from the workspace directory (~/qwen-workspace/). Paths are relative to workspace.',parameters:{type:'object',properties:{path:{type:'string',description:'File path relative to workspace'}},required:['path']}}},
   {type:'function',function:{name:'write_file',description:'Write content to a file in the workspace directory. Creates parent directories as needed.',parameters:{type:'object',properties:{path:{type:'string',description:'File path relative to workspace'},content:{type:'string',description:'File content to write'}},required:['path','content']}}},
+  {type:'function',function:{name:'edit_file',description:'Surgically replace one exact occurrence of old_text with new_text in any file. Use absolute paths for project files (e.g. /mnt/c/Users/rhowa/Claude/qwen-local/chat.html). Fails if old_text matches zero or more than one location — make it specific enough to be unique.',parameters:{type:'object',properties:{path:{type:'string',description:'Absolute path to the file'},old_text:{type:'string',description:'Exact text to find (must match exactly including whitespace/indentation)'},new_text:{type:'string',description:'Text to replace it with'}},required:['path','old_text','new_text']}}},
   {type:'function',function:{name:'list_directory',description:'List files and directories in the workspace directory (~/qwen-workspace/).',parameters:{type:'object',properties:{path:{type:'string',description:'Directory path relative to workspace (use empty string for root)'}},required:['path']}}},
-  {type:'function',function:{name:'run_shell',description:'Execute a shell command in the workspace directory. Returns stdout, stderr, and return code.',parameters:{type:'object',properties:{command:{type:'string',description:'Shell command to execute'}},required:['command']}}}
+  {type:'function',function:{name:'run_shell',description:'Execute a shell command. Returns stdout, stderr, and return code. cwd is ~/qwen-workspace/ by default but cd works freely.',parameters:{type:'object',properties:{command:{type:'string',description:'Shell command to execute'}},required:['command']}}},
+  {type:'function',function:{name:'screenshot',description:'Take a headless Chromium screenshot of a localhost URL and save it to the workspace as a PNG. Returns the saved path.',parameters:{type:'object',properties:{url:{type:'string',description:'URL to screenshot (must be localhost)'},filename:{type:'string',description:'Output filename in workspace (default: screenshot.png)'},full_page:{type:'boolean',description:'Capture full scrollable page height (default: false)'}},required:['url']}}},
+  {type:'function',function:{name:'eval_js',description:'Run JavaScript in a headless browser page and return the result. Use this to inspect the DOM, read state, or verify UI behaviour without being able to see a screenshot.',parameters:{type:'object',properties:{url:{type:'string',description:'Page URL (must be localhost)'},script:{type:'string',description:'JavaScript expression to evaluate — the return value is serialised and returned'}},required:['url','script']}}},
+  {type:'function',function:{name:'get_page_html',description:'Return the rendered HTML of a localhost page after JavaScript has executed (first 40 000 chars). Useful for inspecting the live DOM.',parameters:{type:'object',properties:{url:{type:'string',description:'Page URL (must be localhost)'}},required:['url']}}}
 ];
 const DEFAULT_SYS_PROMPT = `You are a helpful, knowledgeable assistant. Be direct and complete. When thinking through a problem, stay focused — avoid repeating yourself or going in circles. Always produce a full, concrete response: if writing code, make it complete and runnable; if explaining something, end with a clear conclusion. Never produce an empty response.`;
 let systemPrompt = localStorage.getItem(SYS_KEY) ?? DEFAULT_SYS_PROMPT;
@@ -1429,7 +1433,27 @@ function addToolCallBlock(name, args, result) {
 }
 
 async function sendWithTools(myMsgs, myTurns, myCtx, mySessionId, model, isActive) {
-  const TOOLS_SYS = '\n\nYou have access to tools for file operations and shell commands. The workspace is ~/qwen-workspace/. All paths are relative to that directory. Use tools freely when the user asks you to create, read, or run files.';
+  const TOOLS_SYS = `\n\nYou have access to the following tools:
+
+FILE OPS (workspace-relative, ~/qwen-workspace/):
+  read_file, write_file, list_directory
+
+EDITING (absolute paths):
+  edit_file — surgical find/replace in any file; prefer this over write_file for existing code
+
+SHELL:
+  run_shell — arbitrary shell commands with your privileges
+
+BROWSER (localhost only):
+  screenshot — headless Chromium PNG saved to workspace
+  eval_js    — run JS in the page and return the result; use this to inspect DOM state or test behaviour
+  get_page_html — rendered HTML after JS executes
+
+The chat UI source is at /mnt/c/Users/rhowa/Claude/qwen-local/chat.html (single file, ~1550 lines).
+The tool server source is at /mnt/c/Users/rhowa/Claude/qwen-local/tools_server.py.
+Use edit_file with absolute paths to modify these files.
+Use eval_js on http://localhost:8080/chat.html to probe the live UI.
+When making UI changes: edit the file, then eval_js to verify the change landed correctly.`;
   const sp = systemPrompt.trim();
   const summaryEntry = myMsgs.find(m=>m.role==='_summary');
   const convMsgs = myMsgs.filter(m=>m.role!=='_summary');
