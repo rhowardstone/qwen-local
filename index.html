@@ -23,10 +23,6 @@
     #header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
     #header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
     select, .hdr-input { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-size: 12px; outline: none; cursor: pointer; }
-    /* hide number spinners so width can be content-driven */
-    #think-budget::-webkit-inner-spin-button,
-    #think-budget::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    #think-budget { -moz-appearance: textfield; appearance: textfield; text-align: center; }
     select:focus, .hdr-input:focus { border-color: var(--accent); }
     .hdr-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
     .hdr-label input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
@@ -35,6 +31,27 @@
     .hdr-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .hdr-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
     .ml-auto { margin-left: auto; }
+
+    /* budget input — hide spinners */
+    #think-budget::-webkit-inner-spin-button,
+    #think-budget::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    #think-budget { -moz-appearance: textfield; appearance: textfield; text-align: center; }
+
+    /* backend selector */
+    #backend-url { width: 200px; font-family: monospace; font-size: 11px; }
+    #probe-controls { display: flex; align-items: center; gap: 8px; }
+    #probe-controls.hidden { display: none; }
+    #color-by { max-width: 140px; }
+    #concept-input { width: 100px; font-size: 12px; }
+
+    /* ── legend ── */
+    #probs-legend { display: none; width: 100%; padding: 5px 18px; align-items: center; background: var(--surface); border-bottom: 1px solid var(--border); }
+    #probs-legend.visible { display: flex; }
+    #probs-legend-inner { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 820px; margin: 0 auto; font-size: 11px; color: var(--muted); }
+    .legend-grad { flex: 1; height: 6px; border-radius: 3px; }
+    .legend-grad.lp  { background: linear-gradient(to right, #22c55e, #a3e635, #facc15, #fb923c, #ef4444); }
+    .legend-grad.pos { background: linear-gradient(to right, #ef4444, #fb923c, #facc15, #a3e635, #22c55e); }
+    #legend-lo, #legend-hi { font-size: 11px; }
 
     /* ── messages ── */
     #messages { flex: 1; overflow-y: auto; padding: 28px 0 8px; scroll-behavior: smooth; }
@@ -61,7 +78,7 @@
     .copy-btn { position: absolute; top: 8px; right: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
     .copy-btn:hover { color: var(--text); }
 
-    /* ── thinking block ── */
+    /* ── thinking ── */
     .think-block { background: #1c1917; border: 1px solid #57534e; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
     .think-hdr { display: flex; align-items: center; gap: 7px; padding: 7px 11px; cursor: pointer; font-size: 12px; color: #a8956e; user-select: none; }
     .think-hdr:hover { background: rgba(255,255,255,.03); }
@@ -78,7 +95,7 @@
     .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--muted); }
     .empty .logo { font-size: 44px; opacity: .25; }
     .empty h2 { font-size: 19px; color: var(--text); font-weight: 500; }
-    .empty p { font-size: 13px; text-align: center; max-width: 280px; }
+    .empty p { font-size: 13px; text-align: center; max-width: 320px; }
     .suggestions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 6px; }
     .sug { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 18px; padding: 5px 13px; font-size: 12px; cursor: pointer; transition: all .15s; }
     .sug:hover { border-color: var(--accent); color: var(--text); }
@@ -97,114 +114,40 @@
     #stop-btn:hover { background: #b91c1c; }
     #status { max-width: 820px; margin: 0 auto 5px; font-size: 11px; color: var(--muted); min-height: 14px; }
 
-    /* ════════════════════════════════════════════
-       PROBS MODE
-       ════════════════════════════════════════════ */
-    .tok {
-      display: inline;
-      border-radius: 3px;
-      cursor: default;
-      padding: 1px 0;
-      position: relative;
-      transition: filter .1s;
-      white-space: pre-wrap;
-    }
+    /* ═══ PROBS / TOKEN VIEW ═══════════════════════════════════════════ */
+    .tok { display: inline; border-radius: 3px; cursor: default; padding: 1px 0; position: relative; transition: filter .1s; white-space: pre-wrap; }
     .tok:hover { filter: brightness(1.3); }
 
     /* tooltip */
-    #tok-tip {
-      position: fixed;
-      z-index: 9999;
-      background: #1e1e2e;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 11px 14px;
-      font-size: 12px;
-      width: 240px;
-      box-shadow: 0 8px 30px rgba(0,0,0,.5);
-      pointer-events: none;
-      display: none;
-    }
-    #tok-tip .tip-token { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    #tok-tip .tip-prob { font-size: 12px; margin-bottom: 10px; }
-    #tok-tip .tip-bar-wrap { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
-    #tok-tip .tip-bar { height: 100%; border-radius: 3px; }
-    #tok-tip .tip-alts-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
-    #tok-tip .alt-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
-    #tok-tip .alt-tok { font-family: monospace; font-size: 12px; color: var(--text); width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    #tok-tip .alt-pct { font-size: 11px; color: var(--muted); width: 38px; text-align: right; flex-shrink: 0; }
-    #tok-tip .alt-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
-    #tok-tip .alt-bar-fg { height: 100%; border-radius: 2px; }
+    #tok-tip { position: fixed; z-index: 9999; background: #1e1e2e; border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 12px; width: 260px; box-shadow: 0 8px 30px rgba(0,0,0,.5); pointer-events: none; display: none; }
+    #tok-tip .tip-token { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    #tok-tip .tip-section { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 8px 0 4px; }
+    #tok-tip .tip-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    #tok-tip .tip-label { font-family: monospace; font-size: 12px; color: var(--text); width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tok-tip .tip-pct { font-size: 11px; color: var(--muted); width: 42px; text-align: right; flex-shrink: 0; }
+    #tok-tip .tip-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+    #tok-tip .tip-bar-fg { height: 100%; border-radius: 2px; }
 
-    /* legend strip */
-    #probs-legend {
-      display: none;
-      width: 100%;
-      padding: 5px 18px;
-      align-items: center;
-      gap: 8px;
-      font-size: 11px;
-      color: var(--muted);
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-    }
-    #probs-legend.visible { display: flex; }
-    /* inner wrapper keeps content to 820px */
-    #probs-legend-inner {
-      display: flex; align-items: center; gap: 8px;
-      width: 100%; max-width: 820px; margin: 0 auto;
-    }
-    .legend-grad {
-      flex: 1;
-      height: 6px;
-      border-radius: 3px;
-      background: linear-gradient(to right, #22c55e, #a3e635, #facc15, #fb923c, #ef4444);
-    }
-
-    /* probs view wrapper */
-    .probs-view {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 15px;
-      line-height: 1.9;
-      letter-spacing: .01em;
-    }
-    .probs-note {
-      font-size: 12px;
-      color: var(--muted);
-      font-style: italic;
-      margin-top: 6px;
-    }
-
-    /* view toggle on message */
-    .msg-view-toggle {
-      display: none;
-      gap: 5px;
-      margin-top: 8px;
-    }
+    /* view toggle */
+    .msg-view-toggle { display: none; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
     .msg-view-toggle.visible { display: flex; }
-    .vtbtn {
-      font-size: 11px;
-      padding: 3px 9px;
-      border-radius: 5px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all .15s;
-    }
+    .vtbtn { font-size: 11px; padding: 3px 9px; border-radius: 5px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; transition: all .15s; }
     .vtbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
     .vtbtn:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+
+    /* probs view */
+    .probs-view { font-size: 15px; line-height: 1.9; letter-spacing: .01em; }
+
+    /* probe score mini-bars in token view */
+    .tok-probes { display: none; position: absolute; bottom: 100%; left: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 5px; font-size: 10px; white-space: nowrap; }
   </style>
 </head>
 <body>
 
-<!-- tooltip (singleton) -->
+<!-- tooltip -->
 <div id="tok-tip">
   <div class="tip-token" id="tip-token"></div>
-  <div class="tip-prob" id="tip-prob"></div>
-  <div class="tip-bar-wrap"><div class="tip-bar" id="tip-bar"></div></div>
-  <div class="tip-alts-label">Alternatives considered</div>
-  <div id="tip-alts"></div>
+  <div id="tip-sections"></div>
 </div>
 
 <div id="header">
@@ -214,31 +157,55 @@
 
   <div class="hdr-sep"></div>
 
-  <label class="hdr-label">
-    <input type="checkbox" id="thinking-check" checked />
-    Thinking
-  </label>
-  <label class="hdr-label" title="Max thinking tokens (0 = unlimited)">
-    Budget:
-    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024" class="hdr-input" style="width:48px" oninput="resizeBudget(this)" />
+  <!-- backend -->
+  <label class="hdr-label" title="Server URL (Ollama: :11434, Probe server: :8000)">
+    Server:
+    <input id="backend-url" type="text" class="hdr-input"
+           value="http://localhost:11434" onchange="onBackendChange()" />
   </label>
 
   <div class="hdr-sep"></div>
 
-  <button class="hdr-btn" id="probs-btn" onclick="toggleProbsMode()" title="Show per-token probabilities (like OpenAI Playground)">
-    Probs
-  </button>
+  <!-- thinking -->
+  <label class="hdr-label">
+    <input type="checkbox" id="thinking-check" checked />
+    Thinking
+  </label>
+  <label class="hdr-label">
+    Budget:
+    <input id="think-budget" type="number" min="0" max="32000" step="256"
+           value="1024" class="hdr-input" style="width:48px"
+           oninput="resizeBudget(this)" />
+  </label>
+
+  <div class="hdr-sep"></div>
+
+  <!-- probs -->
+  <button class="hdr-btn" id="probs-btn" onclick="toggleProbsMode()">Probs</button>
+
+  <!-- probe controls — only visible when probe server detected -->
+  <div id="probe-controls" class="hidden">
+    <label class="hdr-label">Color by:
+      <select id="color-by" onchange="onColorByChange()">
+        <option value="logprob">logprob</option>
+      </select>
+    </label>
+    <input id="concept-input" type="text" class="hdr-input" placeholder="+ concept"
+           title="Add concept probe (e.g. 'elephant')"
+           onkeydown="if(event.key==='Enter') addConcept()" />
+    <button class="hdr-btn" onclick="addConcept()" title="Add concept probe">+</button>
+  </div>
 
   <div class="ml-auto"></div>
   <button class="hdr-btn" onclick="clearChat()">Clear</button>
 </div>
 
-<!-- probability legend -->
+<!-- legend -->
 <div id="probs-legend">
   <div id="probs-legend-inner">
-    <span>certain</span>
-    <div class="legend-grad"></div>
-    <span>uncertain</span>
+    <span id="legend-lo">certain</span>
+    <div class="legend-grad lp"></div>
+    <span id="legend-hi">uncertain</span>
   </div>
 </div>
 
@@ -246,7 +213,7 @@
   <div class="empty" id="empty-state">
     <div class="logo">✦</div>
     <h2>Qwen Local</h2>
-    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <p>Switch to the probe server (<code>python server.py</code>) at port 8000 to unlock per-token concept coloring.</p>
     <div class="suggestions">
       <button class="sug" onclick="fillInput(this)">Explain quantum entanglement simply</button>
       <button class="sug" onclick="fillInput(this)">Write a Python web scraper</button>
@@ -262,7 +229,7 @@
     <textarea id="input" placeholder="Message Qwen…" rows="1"
       onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     <button id="stop-btn" onclick="stopGeneration()">⏹ Stop</button>
-    <button id="send-btn" onclick="sendMessage()" title="Send (Enter)">
+    <button id="send-btn" onclick="sendMessage()">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
       </svg>
@@ -271,30 +238,131 @@
 </div>
 
 <script>
-const OLLAMA = 'http://localhost:11434';
-let messages = [];
+// ── state ─────────────────────────────────────────────────────────────────
+let messages       = [];
 let abortController = null;
-let probsMode = false;
-let msgIdCounter = 0;
+let probsMode      = false;
+let colorBy        = 'logprob';   // 'logprob' | probe name
+let probeServer    = false;       // true when probe server detected
+let msgIdCounter   = 0;
 
-// keyed by msgId → [{token, prob, alts:[{token,prob}]}]
+// msgId → [{token, logprob, alts, probe_scores, is_thinking}]
 const tokenStore = new Map();
 
-// ── model loading ──────────────────────────────────────────────────────────
+// ── backend ────────────────────────────────────────────────────────────────
+function serverUrl() { return document.getElementById('backend-url').value.replace(/\/$/, ''); }
+
+async function onBackendChange() {
+  await loadModels();
+  await detectProbeServer();
+}
+
+async function detectProbeServer() {
+  const url = serverUrl();
+  const ctrl = document.getElementById('probe-controls');
+  try {
+    const res = await fetch(`${url}/api/probes`, { signal: AbortSignal.timeout(2000) });
+    if (res.ok) {
+      probeServer = true;
+      ctrl.classList.remove('hidden');
+      const { probes } = await res.json();
+      updateColorBySelect(probes);
+      return;
+    }
+  } catch {}
+  probeServer = false;
+  ctrl.classList.add('hidden');
+}
+
+function updateColorBySelect(probeNames) {
+  const sel = document.getElementById('color-by');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="logprob">logprob</option>';
+  for (const name of probeNames) {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    sel.appendChild(opt);
+  }
+  if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
+  colorBy = sel.value;
+  updateLegend();
+}
+
+function onColorByChange() {
+  colorBy = document.getElementById('color-by').value;
+  updateLegend();
+  // Re-render all messages in probs mode
+  if (probsMode) rerenderAllProbs();
+}
+
+async function addConcept() {
+  const inp = document.getElementById('concept-input');
+  const concept = inp.value.trim();
+  if (!concept) return;
+  inp.value = '';
+  setStatus(`Computing "${concept}" probe…`);
+  try {
+    const res = await fetch(`${serverUrl()}/api/probes/compute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ concept }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const { name } = await res.json();
+    // Reload probe list
+    const r2 = await fetch(`${serverUrl()}/api/probes`);
+    const { probes } = await r2.json();
+    updateColorBySelect(probes);
+    document.getElementById('color-by').value = name;
+    colorBy = name;
+    updateLegend();
+    setStatus(`Probe "${concept}" ready`);
+  } catch (e) {
+    setStatus('Probe error: ' + e.message);
+  }
+}
+
+// ── models ─────────────────────────────────────────────────────────────────
 async function loadModels() {
   const sel = document.getElementById('model-select');
   try {
-    const res = await fetch(`${OLLAMA}/api/tags`);
+    const res = await fetch(`${serverUrl()}/api/tags`);
     const { models = [] } = await res.json();
     sel.innerHTML = models.length
       ? models.map(m => `<option value="${m.name}">${m.name}</option>`).join('')
       : '<option value="">No models</option>';
-    const pref = models.find(m => m.name === 'qwen3:8b') || models.find(m => m.name.includes('qwen3'));
+    const pref = models.find(m => m.name === 'qwen3:8b') || models.find(m => m.name.includes('qwen3')) || models[0];
     if (pref) sel.value = pref.name;
-    setStatus(models.length ? `${models.length} model${models.length > 1 ? 's' : ''} available` : 'No models — run: ollama pull qwen3:8b');
+    setStatus(models.length ? `${models.length} model${models.length > 1 ? 's' : ''} available` : 'No models found');
   } catch {
-    sel.innerHTML = '<option value="">Cannot reach Ollama</option>';
-    setStatus('⚠ Cannot connect to Ollama (http://localhost:11434)');
+    sel.innerHTML = '<option value="">Cannot connect</option>';
+    setStatus(`⚠ Cannot connect to ${serverUrl()}`);
+  }
+}
+
+// ── legend ─────────────────────────────────────────────────────────────────
+function updateLegend() {
+  const grad = document.querySelector('.legend-grad');
+  const lo   = document.getElementById('legend-lo');
+  const hi   = document.getElementById('legend-hi');
+  if (colorBy === 'logprob') {
+    grad.className = 'legend-grad lp';
+    lo.textContent = 'certain'; hi.textContent = 'uncertain';
+  } else if (colorBy === 'positivity') {
+    grad.className = 'legend-grad pos';
+    lo.textContent = 'negative'; hi.textContent = 'positive';
+  } else if (colorBy === 'truthfulness') {
+    grad.className = 'legend-grad pos';
+    lo.textContent = 'uncertain'; hi.textContent = 'truthful';
+  } else if (colorBy === 'certainty') {
+    grad.className = 'legend-grad pos';
+    lo.textContent = 'uncertain'; hi.textContent = 'certain';
+  } else {
+    // concept probe
+    grad.className = 'legend-grad pos';
+    const label = colorBy.replace('concept:', '');
+    lo.textContent = `not ${label}`; hi.textContent = label;
   }
 }
 
@@ -303,19 +371,20 @@ function setStatus(t) { document.getElementById('status').textContent = t; }
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px'; }
 function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
 function fillInput(btn) { const i = document.getElementById('input'); i.value = btn.textContent; autoResize(i); i.focus(); }
+function resizeBudget(el) { el.style.width = Math.max(el.value.length, 1) * 7.5 + 18 + 'px'; }
 
 function clearChat() {
   messages = []; tokenStore.clear();
   const c = document.getElementById('messages');
   c.innerHTML = '';
-  c.appendChild(emptyState());
+  c.appendChild(makeEmptyState());
 }
 
-function emptyState() {
+function makeEmptyState() {
   const d = document.createElement('div');
   d.className = 'empty'; d.id = 'empty-state';
   d.innerHTML = `<div class="logo">✦</div><h2>Qwen Local</h2>
-    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <p>Run <code>python server.py</code> on port 8000 to enable per-token concept probing.</p>
     <div class="suggestions">
       <button class="sug" onclick="fillInput(this)">Explain quantum entanglement simply</button>
       <button class="sug" onclick="fillInput(this)">Write a Python web scraper</button>
@@ -325,13 +394,12 @@ function emptyState() {
   return d;
 }
 
-// ── markdown + math ────────────────────────────────────────────────────────
+// ── markdown ───────────────────────────────────────────────────────────────
 function renderMarkdown(text) {
-  const protected_ = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) =>
+  const p = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) =>
     `<div class="math-block">$$${inner.trim().replace(/</g,'&lt;').replace(/>/g,'&gt;')}$$</div>`);
-  return marked.parse(protected_, { breaks: true, gfm: true });
+  return marked.parse(p, { breaks: true, gfm: true });
 }
-
 function applyHighlights(el) {
   el.querySelectorAll('pre code').forEach(block => {
     hljs.highlightElement(block);
@@ -343,177 +411,228 @@ function applyHighlights(el) {
       pre.appendChild(btn);
     }
   });
-  if (typeof renderMathInElement !== 'undefined') {
-    renderMathInElement(el, {
-      delimiters: [
-        { left: '$$', right: '$$', display: true },
-        { left: '$', right: '$', display: false },
-        { left: '\\(', right: '\\)', display: false },
-        { left: '\\[', right: '\\]', display: true },
-      ],
-      throwOnError: false,
-    });
-  }
+  if (typeof renderMathInElement !== 'undefined')
+    renderMathInElement(el, { delimiters: [
+      {left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false},
+      {left:'\\(',right:'\\)',display:false},{left:'\\[',right:'\\]',display:true},
+    ], throwOnError: false });
 }
-
-// ── thinking block ─────────────────────────────────────────────────────────
 function makeThinkBlock(text, collapsed = true) {
   const d = document.createElement('div');
   d.className = 'think-block';
-  d.innerHTML = `
-    <div class="think-hdr ${collapsed ? 'collapsed' : ''}" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
-      <span class="chev">▾</span><span>Thinking</span>
-    </div>
+  d.innerHTML = `<div class="think-hdr ${collapsed ? 'collapsed' : ''}" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+      <span class="chev">▾</span><span>Thinking</span></div>
     <div class="think-body ${collapsed ? 'hidden' : ''}">${text}</div>`;
   return d;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  PROBS MODE
-// ═══════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════
+//  PROBS / TOKEN COLORING
+// ════════════════════════════════════════════════════════════
 
-function probColor(p) {
-  // green→lime→yellow→orange→red
-  if (p >= 0.995) return 'transparent';
-  if (p >= 0.90)  return 'rgba(34,197,94,.18)';
-  if (p >= 0.75)  return 'rgba(163,230,53,.22)';
-  if (p >= 0.55)  return 'rgba(250,204,21,.28)';
-  if (p >= 0.35)  return 'rgba(251,146,60,.38)';
-  if (p >= 0.15)  return 'rgba(248,113,113,.50)';
-  return 'rgba(239,68,68,.68)';
+// Normalize a score array to [0,1]
+function normalize(values) {
+  const mn = Math.min(...values), mx = Math.max(...values);
+  if (mx === mn) return values.map(() => 0.5);
+  return values.map(v => (v - mn) / (mx - mn));
 }
 
-function probAccent(p) {
-  if (p >= 0.90) return '#22c55e';
-  if (p >= 0.75) return '#a3e635';
-  if (p >= 0.55) return '#facc15';
-  if (p >= 0.35) return '#fb923c';
+// Color from 0 (green) → 1 (red) for logprob/uncertainty
+// Color from 0 (red) → 1 (green) for probe scores (higher = more concept)
+function scoreToColor(t, invert = false) {
+  if (invert) t = 1 - t;
+  // green → lime → yellow → orange → red
+  const stops = [
+    [0.00, [34,197,94]],
+    [0.25, [163,230,53]],
+    [0.50, [250,204,21]],
+    [0.75, [251,146,60]],
+    [1.00, [239,68,68]],
+  ];
+  let a = stops[0][1], b = stops[0][1];
+  let ta = 0, tb = 0;
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i][0] && t <= stops[i+1][0]) {
+      [ta, a] = stops[i]; [tb, b] = stops[i+1]; break;
+    }
+  }
+  const f = tb === ta ? 0 : (t - ta) / (tb - ta);
+  const r = Math.round(a[0] + f * (b[0] - a[0]));
+  const g = Math.round(a[1] + f * (b[1] - a[1]));
+  const bl = Math.round(a[2] + f * (b[2] - a[2]));
+  return `rgba(${r},${g},${bl},0.28)`;
+}
+
+function accentColor(t) {
+  if (t < 0.2)  return '#22c55e';
+  if (t < 0.4)  return '#a3e635';
+  if (t < 0.6)  return '#facc15';
+  if (t < 0.8)  return '#fb923c';
   return '#ef4444';
 }
 
-function probLabel(p) {
-  const pct = (p * 100);
+function formatPct(p) {
+  const pct = p * 100;
   if (pct >= 99.5) return '≥99.5%';
   if (pct >= 1)    return pct.toFixed(1) + '%';
   return pct.toFixed(2) + '%';
 }
 
-// build the probs-view span array from stored tokens
+// Compute per-token normalized color values for a given colorBy dimension
+function computeTokenColors(tokens) {
+  if (colorBy === 'logprob') {
+    // logprob: higher prob → lower t (greener)
+    const probs = tokens.map(t => Math.exp(t.logprob));
+    return probs.map(p => ({ t: 1 - p, invert: false }));  // transparent near 1.0
+  } else {
+    const scores = tokens.map(t => (t.probe_scores || {})[colorBy] ?? 0);
+    const norm   = normalize(scores);
+    // probe: higher score = more of the concept = green (invert=true)
+    return norm.map(n => ({ t: n, invert: true }));
+  }
+}
+
 function renderProbsView(tokens) {
   const wrap = document.createElement('div');
   wrap.className = 'probs-view';
+  if (!tokens.length) return wrap;
 
-  tokens.forEach(({ token, prob, alts }, idx) => {
+  const colors = computeTokenColors(tokens);
+
+  tokens.forEach(({ token, logprob, alts, probe_scores }, idx) => {
+    // Skip purely structural think tokens
+    if (token === '<think>' || token === '</think>') return;
+
+    const { t, invert } = colors[idx];
     const span = document.createElement('span');
     span.className = 'tok';
     span.textContent = token;
-    span.style.backgroundColor = probColor(prob);
-    span.dataset.mid = idx; // for tooltip lookup
 
-    // hover tooltip
-    span.addEventListener('mouseenter', e => showTip(e, token, prob, alts));
+    // Only color if meaningfully uncertain/interesting (skip near-transparent)
+    const bg = scoreToColor(t, invert);
+    span.style.backgroundColor = bg;
+
+    span.addEventListener('mouseenter', e => showTip(e, token, logprob, alts, probe_scores, idx, colors[idx]));
     span.addEventListener('mouseleave', hideTip);
-    span.addEventListener('mousemove', moveTip);
-
+    span.addEventListener('mousemove',  moveTip);
     wrap.appendChild(span);
   });
 
   return wrap;
 }
 
-// ── tooltip ────────────────────────────────────────────────
+// ── tooltip ────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tok-tip');
 let tipVisible = false;
-let tipX = 0, tipY = 0;
 
-function showTip(e, token, prob, alts) {
+function showTip(e, token, logprob, alts, probeScores, idx, colorInfo) {
   tipVisible = true;
   document.getElementById('tip-token').textContent = JSON.stringify(token);
-  document.getElementById('tip-prob').textContent = `Probability: ${probLabel(prob)}`;
-  const bar = document.getElementById('tip-bar');
-  bar.style.width = (prob * 100) + '%';
-  bar.style.background = probAccent(prob);
 
-  const altsEl = document.getElementById('tip-alts');
-  altsEl.innerHTML = '';
-  (alts || []).slice(0, 5).forEach(({ token: t, prob: p }) => {
-    const row = document.createElement('div');
-    row.className = 'alt-row';
-    const color = probAccent(p);
-    row.innerHTML = `
-      <span class="alt-tok">${JSON.stringify(t)}</span>
-      <span class="alt-pct">${probLabel(p)}</span>
-      <div class="alt-bar-bg"><div class="alt-bar-fg" style="width:${Math.max(p*100,0.3)}%;background:${color}"></div></div>`;
-    altsEl.appendChild(row);
-  });
+  const sections = document.getElementById('tip-sections');
+  sections.innerHTML = '';
+
+  // logprob section
+  const lp = Math.exp(logprob);
+  sections.appendChild(makeSection('Token probability', [
+    { label: JSON.stringify(token), pct: lp, color: accentColor(1 - lp) },
+    ...(alts || []).slice(0, 5).map(a => ({
+      label: JSON.stringify(a.token), pct: Math.exp(a.logprob), color: accentColor(1 - Math.exp(a.logprob)),
+    })),
+  ], formatPct));
+
+  // probe scores section
+  if (probeScores && Object.keys(probeScores).length) {
+    // Normalize across the displayed scores for bar width
+    const vals = Object.values(probeScores);
+    const mn = Math.min(...vals), mx = Math.max(...vals);
+    const norm = v => mx === mn ? 0.5 : (v - mn) / (mx - mn);
+
+    const rows = Object.entries(probeScores).map(([name, score]) => ({
+      label: name,
+      pct: norm(score),
+      rawScore: score,
+      color: colorBy === name ? '#6366f1' : '#71717a',
+    }));
+    sections.appendChild(makeSection('Probe scores (normalized)', rows,
+      (p, row) => row.rawScore.toFixed(3)));
+  }
 
   tip.style.display = 'block';
   positionTip(e.clientX, e.clientY);
 }
 
+function makeSection(title, rows, fmtFn) {
+  const frag = document.createDocumentFragment();
+  const lbl = document.createElement('div');
+  lbl.className = 'tip-section'; lbl.textContent = title;
+  frag.appendChild(lbl);
+  rows.forEach(row => {
+    const r = document.createElement('div'); r.className = 'tip-row';
+    r.innerHTML = `
+      <span class="tip-label">${row.label}</span>
+      <span class="tip-pct">${fmtFn(row.pct, row)}</span>
+      <div class="tip-bar-bg"><div class="tip-bar-fg" style="width:${Math.max(row.pct*100,0.3)}%;background:${row.color}"></div></div>`;
+    frag.appendChild(r);
+  });
+  return frag;
+}
+
 function moveTip(e) { if (tipVisible) positionTip(e.clientX, e.clientY); }
 function hideTip() { tipVisible = false; tip.style.display = 'none'; }
-
 function positionTip(cx, cy) {
-  const tw = 240, th = tip.offsetHeight || 200;
+  const tw = 260, th = tip.offsetHeight || 220;
   const vw = window.innerWidth, vh = window.innerHeight;
   let x = cx + 14, y = cy + 14;
   if (x + tw > vw - 8) x = cx - tw - 14;
   if (y + th > vh - 8) y = cy - th - 14;
-  tip.style.left = x + 'px';
-  tip.style.top  = y + 'px';
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
 }
 
-// ── probs mode toggle ──────────────────────────────────────
+// ── probs mode toggle ──────────────────────────────────────────────────────
 function toggleProbsMode() {
   probsMode = !probsMode;
-  const btn = document.getElementById('probs-btn');
-  const legend = document.getElementById('probs-legend');
-  btn.classList.toggle('active', probsMode);
-  legend.classList.toggle('visible', probsMode);
+  document.getElementById('probs-btn').classList.toggle('active', probsMode);
+  document.getElementById('probs-legend').classList.toggle('visible', probsMode);
+  rerenderAllProbs();
+}
 
-  // re-render all messages that have token data
+function rerenderAllProbs() {
   document.querySelectorAll('.msg[data-msgid]').forEach(msgEl => {
-    const mid = msgEl.dataset.msgid;
+    const mid    = msgEl.dataset.msgid;
     const tokens = tokenStore.get(mid);
+    if (!tokens) return;
     const contentEl = msgEl.querySelector('.msg-content');
-    const mdEl = msgEl.querySelector('.md-view');
-    const pvEl = msgEl.querySelector('.probs-view');
-    const toggle = msgEl.querySelector('.msg-view-toggle');
-    const mdBtn = msgEl.querySelector('.vtbtn[data-view=md]');
-    const pvBtn = msgEl.querySelector('.vtbtn[data-view=pv]');
-
-    if (!tokens || !contentEl) return;
+    const mdEl      = msgEl.querySelector('.md-view');
+    let pvEl        = msgEl.querySelector('.probs-view');
+    const toggle    = msgEl.querySelector('.msg-view-toggle');
+    const mdBtn     = msgEl.querySelector('.vtbtn[data-view=md]');
+    const pvBtn     = msgEl.querySelector('.vtbtn[data-view=pv]');
 
     if (probsMode) {
       if (mdEl) mdEl.style.display = 'none';
-      if (!pvEl) {
-        // build and insert probs view
-        const pv = renderProbsView(tokens);
-        contentEl.appendChild(pv);
-      } else {
-        pvEl.style.display = '';
-      }
+      if (pvEl) pvEl.remove();        // rebuild so colorBy update takes effect
+      pvEl = renderProbsView(tokens);
+      contentEl.appendChild(pvEl);
       if (toggle) toggle.classList.add('visible');
-      if (pvBtn) pvBtn.classList.add('active');
-      if (mdBtn) mdBtn.classList.remove('active');
+      pvBtn?.classList.add('active'); mdBtn?.classList.remove('active');
     } else {
       if (pvEl) pvEl.style.display = 'none';
       if (mdEl) mdEl.style.display = '';
       if (toggle) toggle.classList.add('visible');
-      if (mdBtn) mdBtn.classList.add('active');
-      if (pvBtn) pvBtn.classList.remove('active');
+      mdBtn?.classList.add('active'); pvBtn?.classList.remove('active');
     }
   });
 }
 
 function switchView(msgId, view) {
-  const msgEl = document.querySelector(`.msg[data-msgid="${msgId}"]`);
+  const msgEl    = document.querySelector(`.msg[data-msgid="${msgId}"]`);
   if (!msgEl) return;
-  const mdEl = msgEl.querySelector('.md-view');
-  const pvEl = msgEl.querySelector('.probs-view');
-  const mdBtn = msgEl.querySelector('.vtbtn[data-view=md]');
-  const pvBtn = msgEl.querySelector('.vtbtn[data-view=pv]');
+  const contentEl = msgEl.querySelector('.msg-content');
+  const mdEl      = msgEl.querySelector('.md-view');
+  let pvEl        = msgEl.querySelector('.probs-view');
+  const mdBtn     = msgEl.querySelector('.vtbtn[data-view=md]');
+  const pvBtn     = msgEl.querySelector('.vtbtn[data-view=pv]');
 
   if (view === 'md') {
     if (mdEl) mdEl.style.display = '';
@@ -522,23 +641,19 @@ function switchView(msgId, view) {
   } else {
     if (mdEl) mdEl.style.display = 'none';
     const tokens = tokenStore.get(msgId);
-    if (!pvEl && tokens) {
-      const pv = renderProbsView(tokens);
-      msgEl.querySelector('.msg-content').appendChild(pv);
-    } else if (pvEl) pvEl.style.display = '';
+    if (pvEl) pvEl.remove();
+    if (tokens) { pvEl = renderProbsView(tokens); contentEl.appendChild(pvEl); }
     pvBtn?.classList.add('active'); mdBtn?.classList.remove('active');
   }
 }
 
-// ── add message to DOM ─────────────────────────────────────
+// ── DOM helpers ────────────────────────────────────────────────────────────
 function addMessage(role, html, msgId) {
   document.getElementById('empty-state')?.remove();
   const container = document.getElementById('messages');
   const wrap = document.createElement('div');
   wrap.className = 'msg';
   if (msgId) wrap.dataset.msgid = msgId;
-
-  const mdId = msgId ? ` data-msgid="${msgId}"` : '';
   wrap.innerHTML = `
     <div class="avatar ${role}">${role === 'user' ? '👤' : '✦'}</div>
     <div class="msg-body">
@@ -556,13 +671,13 @@ function addMessage(role, html, msgId) {
   return wrap.querySelector('.msg-content');
 }
 
-// ── main send / stream ─────────────────────────────────────
+// ── send / stream ──────────────────────────────────────────────────────────
 async function sendMessage() {
-  const inp = document.getElementById('input');
+  const inp  = document.getElementById('input');
   const text = inp.value.trim();
   if (!text || abortController) return;
 
-  const model = document.getElementById('model-select').value;
+  const model   = document.getElementById('model-select').value;
   if (!model) { setStatus('Select a model first'); return; }
 
   const thinkOn = document.getElementById('thinking-check').checked;
@@ -575,9 +690,9 @@ async function sendMessage() {
   messages.push({ role: 'user', content: text });
   addMessage('user', renderMarkdown(text));
 
-  const msgId = String(++msgIdCounter);
+  const msgId    = String(++msgIdCounter);
   const contentEl = addMessage('assistant', '', msgId);
-  const mdView = contentEl.querySelector('.md-view');
+  const mdView    = contentEl.querySelector('.md-view');
   mdView.innerHTML = '<span class="cursor"></span>';
 
   abortController = new AbortController();
@@ -586,25 +701,27 @@ async function sendMessage() {
   let fullText = '', thinkText = '';
   let thinkBlockEl = null, thinkBodyEl = null, mdDivEl = null;
   let tokenCount = 0, thinkTokens = 0;
-  const collectedTokens = []; // [{token, prob, alts}]
+  const collectedTokens = [];
   const t0 = performance.now();
 
   try {
-    const res = await fetch(`${OLLAMA}/api/chat`, {
+    const body = {
+      model, messages, stream: true,
+      think: thinkOn,
+      logprobs: true, top_logprobs: 5,
+      options: { num_predict: 4096 },
+      ...(thinkOn && budget > 0 ? { thinking_budget: budget } : {}),
+      ...(probeServer ? { active_probes: null } : {}),  // null = all probes
+    };
+
+    const res = await fetch(`${serverUrl()}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: abortController.signal,
-      body: JSON.stringify({
-        model, messages, stream: true,
-        think: thinkOn,
-        logprobs: true,
-        top_logprobs: 5,
-        options: { num_predict: 4096 },
-        ...(thinkOn && budget > 0 ? { thinking_budget: budget } : {}),
-      }),
+      body: JSON.stringify(body),
     });
 
-    const reader = res.body.getReader();
+    const reader  = res.body.getReader();
     const decoder = new TextDecoder();
 
     while (true) {
@@ -613,26 +730,25 @@ async function sendMessage() {
       const lines = decoder.decode(value).split('\n').filter(Boolean);
 
       for (const line of lines) {
-        let chunk;
-        try { chunk = JSON.parse(line); } catch { continue; }
-
+        let chunk; try { chunk = JSON.parse(line); } catch { continue; }
         if (chunk.done) {
           const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-          const thinkInfo = thinkTokens > 0 ? ` · 🧠 ${thinkTokens} think` : '';
-          setStatus(`${tokenCount} tokens${thinkInfo} · ${elapsed}s · ${(tokenCount / elapsed).toFixed(0)} tok/s`);
+          const ti = thinkTokens > 0 ? ` · 🧠 ${thinkTokens} think` : '';
+          setStatus(`${tokenCount} tokens${ti} · ${elapsed}s · ${(tokenCount / elapsed).toFixed(0)} tok/s`);
           break;
         }
 
         const thinkDelta = chunk.message?.thinking || '';
         const delta      = chunk.message?.content  || '';
         const lpEntry    = Array.isArray(chunk.logprobs) ? chunk.logprobs[0] : null;
+        const pScores    = chunk.probe_scores || {};
 
         if (thinkDelta) {
           thinkTokens++;
           thinkText += thinkDelta;
           if (!thinkBlockEl) {
             thinkBlockEl = makeThinkBlock('', false);
-            thinkBodyEl = thinkBlockEl.querySelector('.think-body');
+            thinkBodyEl  = thinkBlockEl.querySelector('.think-body');
             mdView.innerHTML = '';
             mdView.appendChild(thinkBlockEl);
           }
@@ -644,54 +760,38 @@ async function sendMessage() {
           tokenCount++;
           fullText += delta;
 
-          // collect token prob data
           if (lpEntry) {
-            const prob = Math.exp(lpEntry.logprob);
-            const alts = (lpEntry.top_logprobs || []).map(a => ({
-              token: a.token,
-              prob: Math.exp(a.logprob),
-            }));
-            collectedTokens.push({ token: lpEntry.token, prob, alts });
+            collectedTokens.push({
+              token:       lpEntry.token || delta,
+              logprob:     lpEntry.logprob ?? -Infinity,
+              alts:        (lpEntry.top_logprobs || []).map(a => ({ token: a.token, prob: Math.exp(a.logprob) })),
+              probe_scores: pScores,
+            });
           }
 
-          // collapse thinking block once response starts
           if (thinkBlockEl && thinkBodyEl) {
             thinkBlockEl.querySelector('.think-hdr')?.classList.add('collapsed');
             thinkBodyEl.classList.add('hidden');
             thinkBlockEl = null;
           }
-
-          if (!mdDivEl) {
-            mdDivEl = document.createElement('div');
-            mdView.appendChild(mdDivEl);
-          }
+          if (!mdDivEl) { mdDivEl = document.createElement('div'); mdView.appendChild(mdDivEl); }
           mdDivEl.innerHTML = renderMarkdown(fullText);
           applyHighlights(mdDivEl);
         }
 
-        // streaming cursor
         mdView.querySelectorAll('.cursor').forEach(c => c.remove());
-        if (!chunk.done) {
-          const cur = document.createElement('span');
-          cur.className = 'cursor';
-          mdView.appendChild(cur);
-        }
-
+        if (!chunk.done) { const cur = document.createElement('span'); cur.className = 'cursor'; mdView.appendChild(cur); }
         document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
       }
     }
 
-    // finalise
     mdView.querySelectorAll('.cursor').forEach(c => c.remove());
 
-    // store token data if we collected any
     if (collectedTokens.length > 0) {
       tokenStore.set(msgId, collectedTokens);
-      // show the per-message toggle
       const toggle = document.getElementById(`vt-${msgId}`);
       if (toggle) toggle.classList.add('visible');
 
-      // if probs mode is already on, immediately show probs view
       if (probsMode) {
         const pv = renderProbsView(collectedTokens);
         contentEl.appendChild(pv);
@@ -701,24 +801,15 @@ async function sendMessage() {
         pvBtn?.classList.add('active'); mdBtn?.classList.remove('active');
       }
     } else {
-      // hide toggle if no logprobs came back
-      const toggle = document.getElementById(`vt-${msgId}`);
-      if (toggle) toggle.style.display = 'none';
+      document.getElementById(`vt-${msgId}`)?.style && (document.getElementById(`vt-${msgId}`).style.display = 'none');
     }
 
-    if (!fullText && !thinkText) {
-      mdView.innerHTML = '<span style="color:var(--muted)">…</span>';
-    }
-
+    if (!fullText && !thinkText) mdView.innerHTML = '<span style="color:var(--muted)">…</span>';
     messages.push({ role: 'assistant', content: fullText });
 
   } catch (e) {
-    if (e.name === 'AbortError') {
-      setStatus('Stopped');
-    } else {
-      setStatus('Error: ' + e.message);
-      mdView.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`;
-    }
+    if (e.name === 'AbortError') setStatus('Stopped');
+    else { setStatus('Error: ' + e.message); mdView.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`; }
   } finally {
     abortController = null;
     document.getElementById('send-btn').disabled = false;
@@ -729,14 +820,15 @@ async function sendMessage() {
 
 function stopGeneration() { abortController?.abort(); }
 
-function resizeBudget(el) {
-  // each digit ≈ 7.5px at 12px font; add ~18px for padding
-  el.style.width = Math.max(el.value.length, 1) * 7.5 + 18 + 'px';
+// ── init ───────────────────────────────────────────────────────────────────
+async function init() {
+  resizeBudget(document.getElementById('think-budget'));
+  await loadModels();
+  await detectProbeServer();
+  document.getElementById('input').focus();
 }
 
-loadModels();
-resizeBudget(document.getElementById('think-budget'));
-document.getElementById('input').focus();
+init();
 </script>
 </body>
 </html>
