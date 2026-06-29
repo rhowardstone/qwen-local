@@ -23,6 +23,10 @@
     #header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
     #header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
     select, .hdr-input { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-size: 12px; outline: none; cursor: pointer; }
+    /* hide number spinners so width can be content-driven */
+    #think-budget::-webkit-inner-spin-button,
+    #think-budget::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    #think-budget { -moz-appearance: textfield; appearance: textfield; text-align: center; }
     select:focus, .hdr-input:focus { border-color: var(--accent); }
     .hdr-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
     .hdr-label input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
@@ -135,15 +139,21 @@
     /* legend strip */
     #probs-legend {
       display: none;
-      max-width: 820px;
-      margin: -12px auto 10px;
-      padding: 0 18px;
+      width: 100%;
+      padding: 5px 18px;
       align-items: center;
       gap: 8px;
       font-size: 11px;
       color: var(--muted);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
     }
     #probs-legend.visible { display: flex; }
+    /* inner wrapper keeps content to 820px */
+    #probs-legend-inner {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; max-width: 820px; margin: 0 auto;
+    }
     .legend-grad {
       flex: 1;
       height: 6px;
@@ -210,7 +220,7 @@
   </label>
   <label class="hdr-label" title="Max thinking tokens (0 = unlimited)">
     Budget:
-    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024" class="hdr-input" style="width:58px" />
+    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024" class="hdr-input" style="width:48px" oninput="resizeBudget(this)" />
   </label>
 
   <div class="hdr-sep"></div>
@@ -225,9 +235,11 @@
 
 <!-- probability legend -->
 <div id="probs-legend">
-  <span>certain</span>
-  <div class="legend-grad"></div>
-  <span>uncertain</span>
+  <div id="probs-legend-inner">
+    <span>certain</span>
+    <div class="legend-grad"></div>
+    <span>uncertain</span>
+  </div>
 </div>
 
 <div id="messages">
@@ -717,7 +729,13 @@ async function sendMessage() {
 
 function stopGeneration() { abortController?.abort(); }
 
+function resizeBudget(el) {
+  // each digit ≈ 7.5px at 12px font; add ~18px for padding
+  el.style.width = Math.max(el.value.length, 1) * 7.5 + 18 + 'px';
+}
+
 loadModels();
+resizeBudget(document.getElementById('think-budget'));
 document.getElementById('input').focus();
 </script>
 </body>
