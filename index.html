@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Qwen Local</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f11; --surface: #18181b; --surface2: #27272a;
+      --border: #3f3f46; --text: #fafafa; --muted: #a1a1aa;
+      --accent: #6366f1; --accent2: #4f46e5;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── header ── */
+    #header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; flex-wrap: wrap; }
+    #header h1 { font-size: 15px; font-weight: 600; white-space: nowrap; }
+    select, .hdr-input { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; font-size: 12px; outline: none; cursor: pointer; }
+    select:focus, .hdr-input:focus { border-color: var(--accent); }
+    .hdr-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .hdr-label input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+    .hdr-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer; white-space: nowrap; transition: all .15s; }
+    .hdr-btn:hover { border-color: var(--muted); color: var(--text); }
+    .hdr-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .hdr-sep { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+    .ml-auto { margin-left: auto; }
+
+    /* ── messages ── */
+    #messages { flex: 1; overflow-y: auto; padding: 28px 0 8px; scroll-behavior: smooth; }
+    #messages::-webkit-scrollbar { width: 5px; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .msg { max-width: 820px; margin: 0 auto 24px; padding: 0 18px; display: flex; gap: 13px; align-items: flex-start; }
+    .avatar { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; margin-top: 2px; }
+    .avatar.user { background: var(--accent); }
+    .avatar.assistant { background: var(--surface2); border: 1px solid var(--border); }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-role { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .06em; }
+    .msg-content { font-size: 15px; line-height: 1.68; }
+    .msg-content p { margin-bottom: 10px; }
+    .msg-content p:last-child { margin-bottom: 0; }
+    .msg-content pre { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; margin: 10px 0; font-size: 13px; position: relative; }
+    .msg-content code:not(pre code) { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 5px; font-size: 13px; font-family: 'Fira Code', monospace; }
+    .msg-content ul, .msg-content ol { padding-left: 20px; margin-bottom: 10px; }
+    .msg-content li { margin-bottom: 3px; }
+    .msg-content h1,.msg-content h2,.msg-content h3 { margin: 14px 0 7px; }
+    .msg-content blockquote { border-left: 3px solid var(--accent); padding: 3px 12px; margin: 10px 0; color: var(--muted); }
+    .msg-content table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+    .msg-content th, .msg-content td { border: 1px solid var(--border); padding: 7px 11px; font-size: 13px; }
+    .msg-content th { background: var(--surface2); }
+    .copy-btn { position: absolute; top: 8px; right: 8px; background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+    .copy-btn:hover { color: var(--text); }
+
+    /* ── thinking block ── */
+    .think-block { background: #1c1917; border: 1px solid #57534e; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+    .think-hdr { display: flex; align-items: center; gap: 7px; padding: 7px 11px; cursor: pointer; font-size: 12px; color: #a8956e; user-select: none; }
+    .think-hdr:hover { background: rgba(255,255,255,.03); }
+    .think-hdr .chev { transition: transform .2s; font-size: 10px; }
+    .think-hdr.collapsed .chev { transform: rotate(-90deg); }
+    .think-body { padding: 9px 12px; font-size: 13px; color: #a8956e; line-height: 1.6; white-space: pre-wrap; font-style: italic; }
+    .think-body.hidden { display: none; }
+
+    /* ── cursor ── */
+    .cursor { display: inline-block; width: 2px; height: 1em; background: var(--accent); margin-left: 2px; vertical-align: text-bottom; animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* ── empty state ── */
+    .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px; color: var(--muted); }
+    .empty .logo { font-size: 44px; opacity: .25; }
+    .empty h2 { font-size: 19px; color: var(--text); font-weight: 500; }
+    .empty p { font-size: 13px; text-align: center; max-width: 280px; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; margin-top: 6px; }
+    .sug { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); border-radius: 18px; padding: 5px 13px; font-size: 12px; cursor: pointer; transition: all .15s; }
+    .sug:hover { border-color: var(--accent); color: var(--text); }
+
+    /* ── input area ── */
+    #input-area { background: var(--surface); border-top: 1px solid var(--border); padding: 13px 16px; flex-shrink: 0; }
+    #input-wrap { max-width: 820px; margin: 0 auto; display: flex; gap: 9px; align-items: flex-end; }
+    #input { flex: 1; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 11px; padding: 11px 14px; font-size: 15px; font-family: inherit; resize: none; outline: none; min-height: 46px; max-height: 200px; line-height: 1.5; transition: border-color .15s; }
+    #input:focus { border-color: var(--accent); }
+    #input::placeholder { color: var(--muted); }
+    #send-btn { background: var(--accent); color: #fff; border: none; border-radius: 9px; width: 42px; height: 42px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s, transform .1s; }
+    #send-btn:hover:not(:disabled) { background: var(--accent2); }
+    #send-btn:active:not(:disabled) { transform: scale(.95); }
+    #send-btn:disabled { opacity: .45; cursor: not-allowed; }
+    #stop-btn { background: #dc2626; color: #fff; border: none; border-radius: 9px; padding: 0 14px; height: 42px; cursor: pointer; font-size: 13px; font-weight: 600; display: none; align-items: center; gap: 5px; transition: background .15s; }
+    #stop-btn:hover { background: #b91c1c; }
+    #status { max-width: 820px; margin: 0 auto 5px; font-size: 11px; color: var(--muted); min-height: 14px; }
+
+    /* ════════════════════════════════════════════
+       PROBS MODE
+       ════════════════════════════════════════════ */
+    .tok {
+      display: inline;
+      border-radius: 3px;
+      cursor: default;
+      padding: 1px 0;
+      position: relative;
+      transition: filter .1s;
+      white-space: pre-wrap;
+    }
+    .tok:hover { filter: brightness(1.3); }
+
+    /* tooltip */
+    #tok-tip {
+      position: fixed;
+      z-index: 9999;
+      background: #1e1e2e;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 12px;
+      width: 240px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.5);
+      pointer-events: none;
+      display: none;
+    }
+    #tok-tip .tip-token { font-family: monospace; font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    #tok-tip .tip-prob { font-size: 12px; margin-bottom: 10px; }
+    #tok-tip .tip-bar-wrap { height: 5px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin-bottom: 10px; }
+    #tok-tip .tip-bar { height: 100%; border-radius: 3px; }
+    #tok-tip .tip-alts-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+    #tok-tip .alt-row { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+    #tok-tip .alt-tok { font-family: monospace; font-size: 12px; color: var(--text); width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #tok-tip .alt-pct { font-size: 11px; color: var(--muted); width: 38px; text-align: right; flex-shrink: 0; }
+    #tok-tip .alt-bar-bg { flex: 1; height: 4px; background: var(--surface2); border-radius: 2px; overflow: hidden; }
+    #tok-tip .alt-bar-fg { height: 100%; border-radius: 2px; }
+
+    /* legend strip */
+    #probs-legend {
+      display: none;
+      max-width: 820px;
+      margin: -12px auto 10px;
+      padding: 0 18px;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    #probs-legend.visible { display: flex; }
+    .legend-grad {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #22c55e, #a3e635, #facc15, #fb923c, #ef4444);
+    }
+
+    /* probs view wrapper */
+    .probs-view {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 1.9;
+      letter-spacing: .01em;
+    }
+    .probs-note {
+      font-size: 12px;
+      color: var(--muted);
+      font-style: italic;
+      margin-top: 6px;
+    }
+
+    /* view toggle on message */
+    .msg-view-toggle {
+      display: none;
+      gap: 5px;
+      margin-top: 8px;
+    }
+    .msg-view-toggle.visible { display: flex; }
+    .vtbtn {
+      font-size: 11px;
+      padding: 3px 9px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .vtbtn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .vtbtn:hover:not(.active) { border-color: var(--muted); color: var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- tooltip (singleton) -->
+<div id="tok-tip">
+  <div class="tip-token" id="tip-token"></div>
+  <div class="tip-prob" id="tip-prob"></div>
+  <div class="tip-bar-wrap"><div class="tip-bar" id="tip-bar"></div></div>
+  <div class="tip-alts-label">Alternatives considered</div>
+  <div id="tip-alts"></div>
+</div>
+
+<div id="header">
+  <div style="font-size:19px">✦</div>
+  <h1>Qwen Local</h1>
+  <select id="model-select"><option value="">Loading…</option></select>
+
+  <div class="hdr-sep"></div>
+
+  <label class="hdr-label">
+    <input type="checkbox" id="thinking-check" checked />
+    Thinking
+  </label>
+  <label class="hdr-label" title="Max thinking tokens (0 = unlimited)">
+    Budget:
+    <input id="think-budget" type="number" min="0" max="32000" step="256" value="1024" class="hdr-input" style="width:58px" />
+  </label>
+
+  <div class="hdr-sep"></div>
+
+  <button class="hdr-btn" id="probs-btn" onclick="toggleProbsMode()" title="Show per-token probabilities (like OpenAI Playground)">
+    Probs
+  </button>
+
+  <div class="ml-auto"></div>
+  <button class="hdr-btn" onclick="clearChat()">Clear</button>
+</div>
+
+<!-- probability legend -->
+<div id="probs-legend">
+  <span>certain</span>
+  <div class="legend-grad"></div>
+  <span>uncertain</span>
+</div>
+
+<div id="messages">
+  <div class="empty" id="empty-state">
+    <div class="logo">✦</div>
+    <h2>Qwen Local</h2>
+    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <div class="suggestions">
+      <button class="sug" onclick="fillInput(this)">Explain quantum entanglement simply</button>
+      <button class="sug" onclick="fillInput(this)">Write a Python web scraper</button>
+      <button class="sug" onclick="fillInput(this)">What are the best Rust crates for async?</button>
+      <button class="sug" onclick="fillInput(this)">Prove there are infinite primes</button>
+    </div>
+  </div>
+</div>
+
+<div id="input-area">
+  <div id="status"></div>
+  <div id="input-wrap">
+    <textarea id="input" placeholder="Message Qwen…" rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+    <button id="stop-btn" onclick="stopGeneration()">⏹ Stop</button>
+    <button id="send-btn" onclick="sendMessage()" title="Send (Enter)">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+const OLLAMA = 'http://localhost:11434';
+let messages = [];
+let abortController = null;
+let probsMode = false;
+let msgIdCounter = 0;
+
+// keyed by msgId → [{token, prob, alts:[{token,prob}]}]
+const tokenStore = new Map();
+
+// ── model loading ──────────────────────────────────────────────────────────
+async function loadModels() {
+  const sel = document.getElementById('model-select');
+  try {
+    const res = await fetch(`${OLLAMA}/api/tags`);
+    const { models = [] } = await res.json();
+    sel.innerHTML = models.length
+      ? models.map(m => `<option value="${m.name}">${m.name}</option>`).join('')
+      : '<option value="">No models</option>';
+    const pref = models.find(m => m.name === 'qwen3:8b') || models.find(m => m.name.includes('qwen3'));
+    if (pref) sel.value = pref.name;
+    setStatus(models.length ? `${models.length} model${models.length > 1 ? 's' : ''} available` : 'No models — run: ollama pull qwen3:8b');
+  } catch {
+    sel.innerHTML = '<option value="">Cannot reach Ollama</option>';
+    setStatus('⚠ Cannot connect to Ollama (http://localhost:11434)');
+  }
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function setStatus(t) { document.getElementById('status').textContent = t; }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 200) + 'px'; }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function fillInput(btn) { const i = document.getElementById('input'); i.value = btn.textContent; autoResize(i); i.focus(); }
+
+function clearChat() {
+  messages = []; tokenStore.clear();
+  const c = document.getElementById('messages');
+  c.innerHTML = '';
+  c.appendChild(emptyState());
+}
+
+function emptyState() {
+  const d = document.createElement('div');
+  d.className = 'empty'; d.id = 'empty-state';
+  d.innerHTML = `<div class="logo">✦</div><h2>Qwen Local</h2>
+    <p>Running locally on your RTX 4060. Private, fast, free.</p>
+    <div class="suggestions">
+      <button class="sug" onclick="fillInput(this)">Explain quantum entanglement simply</button>
+      <button class="sug" onclick="fillInput(this)">Write a Python web scraper</button>
+      <button class="sug" onclick="fillInput(this)">What are the best Rust crates for async?</button>
+      <button class="sug" onclick="fillInput(this)">Prove there are infinite primes</button>
+    </div>`;
+  return d;
+}
+
+// ── markdown + math ────────────────────────────────────────────────────────
+function renderMarkdown(text) {
+  const protected_ = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, inner) =>
+    `<div class="math-block">$$${inner.trim().replace(/</g,'&lt;').replace(/>/g,'&gt;')}$$</div>`);
+  return marked.parse(protected_, { breaks: true, gfm: true });
+}
+
+function applyHighlights(el) {
+  el.querySelectorAll('pre code').forEach(block => {
+    hljs.highlightElement(block);
+    const pre = block.parentElement;
+    if (!pre.querySelector('.copy-btn')) {
+      const btn = document.createElement('button');
+      btn.className = 'copy-btn'; btn.textContent = 'copy';
+      btn.onclick = () => { navigator.clipboard.writeText(block.textContent); btn.textContent = 'copied!'; setTimeout(() => btn.textContent = 'copy', 2000); };
+      pre.appendChild(btn);
+    }
+  });
+  if (typeof renderMathInElement !== 'undefined') {
+    renderMathInElement(el, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+        { left: '\\[', right: '\\]', display: true },
+      ],
+      throwOnError: false,
+    });
+  }
+}
+
+// ── thinking block ─────────────────────────────────────────────────────────
+function makeThinkBlock(text, collapsed = true) {
+  const d = document.createElement('div');
+  d.className = 'think-block';
+  d.innerHTML = `
+    <div class="think-hdr ${collapsed ? 'collapsed' : ''}" onclick="this.classList.toggle('collapsed');this.nextElementSibling.classList.toggle('hidden')">
+      <span class="chev">▾</span><span>Thinking</span>
+    </div>
+    <div class="think-body ${collapsed ? 'hidden' : ''}">${text}</div>`;
+  return d;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PROBS MODE
+// ═══════════════════════════════════════════════════════════
+
+function probColor(p) {
+  // green→lime→yellow→orange→red
+  if (p >= 0.995) return 'transparent';
+  if (p >= 0.90)  return 'rgba(34,197,94,.18)';
+  if (p >= 0.75)  return 'rgba(163,230,53,.22)';
+  if (p >= 0.55)  return 'rgba(250,204,21,.28)';
+  if (p >= 0.35)  return 'rgba(251,146,60,.38)';
+  if (p >= 0.15)  return 'rgba(248,113,113,.50)';
+  return 'rgba(239,68,68,.68)';
+}
+
+function probAccent(p) {
+  if (p >= 0.90) return '#22c55e';
+  if (p >= 0.75) return '#a3e635';
+  if (p >= 0.55) return '#facc15';
+  if (p >= 0.35) return '#fb923c';
+  return '#ef4444';
+}
+
+function probLabel(p) {
+  const pct = (p * 100);
+  if (pct >= 99.5) return '≥99.5%';
+  if (pct >= 1)    return pct.toFixed(1) + '%';
+  return pct.toFixed(2) + '%';
+}
+
+// build the probs-view span array from stored tokens
+function renderProbsView(tokens) {
+  const wrap = document.createElement('div');
+  wrap.className = 'probs-view';
+
+  tokens.forEach(({ token, prob, alts }, idx) => {
+    const span = document.createElement('span');
+    span.className = 'tok';
+    span.textContent = token;
+    span.style.backgroundColor = probColor(prob);
+    span.dataset.mid = idx; // for tooltip lookup
+
+    // hover tooltip
+    span.addEventListener('mouseenter', e => showTip(e, token, prob, alts));
+    span.addEventListener('mouseleave', hideTip);
+    span.addEventListener('mousemove', moveTip);
+
+    wrap.appendChild(span);
+  });
+
+  return wrap;
+}
+
+// ── tooltip ────────────────────────────────────────────────
+const tip = document.getElementById('tok-tip');
+let tipVisible = false;
+let tipX = 0, tipY = 0;
+
+function showTip(e, token, prob, alts) {
+  tipVisible = true;
+  document.getElementById('tip-token').textContent = JSON.stringify(token);
+  document.getElementById('tip-prob').textContent = `Probability: ${probLabel(prob)}`;
+  const bar = document.getElementById('tip-bar');
+  bar.style.width = (prob * 100) + '%';
+  bar.style.background = probAccent(prob);
+
+  const altsEl = document.getElementById('tip-alts');
+  altsEl.innerHTML = '';
+  (alts || []).slice(0, 5).forEach(({ token: t, prob: p }) => {
+    const row = document.createElement('div');
+    row.className = 'alt-row';
+    const color = probAccent(p);
+    row.innerHTML = `
+      <span class="alt-tok">${JSON.stringify(t)}</span>
+      <span class="alt-pct">${probLabel(p)}</span>
+      <div class="alt-bar-bg"><div class="alt-bar-fg" style="width:${Math.max(p*100,0.3)}%;background:${color}"></div></div>`;
+    altsEl.appendChild(row);
+  });
+
+  tip.style.display = 'block';
+  positionTip(e.clientX, e.clientY);
+}
+
+function moveTip(e) { if (tipVisible) positionTip(e.clientX, e.clientY); }
+function hideTip() { tipVisible = false; tip.style.display = 'none'; }
+
+function positionTip(cx, cy) {
+  const tw = 240, th = tip.offsetHeight || 200;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let x = cx + 14, y = cy + 14;
+  if (x + tw > vw - 8) x = cx - tw - 14;
+  if (y + th > vh - 8) y = cy - th - 14;
+  tip.style.left = x + 'px';
+  tip.style.top  = y + 'px';
+}
+
+// ── probs mode toggle ──────────────────────────────────────
+function toggleProbsMode() {
+  probsMode = !probsMode;
+  const btn = document.getElementById('probs-btn');
+  const legend = document.getElementById('probs-legend');
+  btn.classList.toggle('active', probsMode);
+  legend.classList.toggle('visible', probsMode);
+
+  // re-render all messages that have token data
+  document.querySelectorAll('.msg[data-msgid]').forEach(msgEl => {
+    const mid = msgEl.dataset.msgid;
+    const tokens = tokenStore.get(mid);
+    const contentEl = msgEl.querySelector('.msg-content');
+    const mdEl = msgEl.querySelector('.md-view');
+    const pvEl = msgEl.querySelector('.probs-view');
+    const toggle = msgEl.querySelector('.msg-view-toggle');
+    const mdBtn = msgEl.querySelector('.vtbtn[data-view=md]');
+    const pvBtn = msgEl.querySelector('.vtbtn[data-view=pv]');
+
+    if (!tokens || !contentEl) return;
+
+    if (probsMode) {
+      if (mdEl) mdEl.style.display = 'none';
+      if (!pvEl) {
+        // build and insert probs view
+        const pv = renderProbsView(tokens);
+        contentEl.appendChild(pv);
+      } else {
+        pvEl.style.display = '';
+      }
+      if (toggle) toggle.classList.add('visible');
+      if (pvBtn) pvBtn.classList.add('active');
+      if (mdBtn) mdBtn.classList.remove('active');
+    } else {
+      if (pvEl) pvEl.style.display = 'none';
+      if (mdEl) mdEl.style.display = '';
+      if (toggle) toggle.classList.add('visible');
+      if (mdBtn) mdBtn.classList.add('active');
+      if (pvBtn) pvBtn.classList.remove('active');
+    }
+  });
+}
+
+function switchView(msgId, view) {
+  const msgEl = document.querySelector(`.msg[data-msgid="${msgId}"]`);
+  if (!msgEl) return;
+  const mdEl = msgEl.querySelector('.md-view');
+  const pvEl = msgEl.querySelector('.probs-view');
+  const mdBtn = msgEl.querySelector('.vtbtn[data-view=md]');
+  const pvBtn = msgEl.querySelector('.vtbtn[data-view=pv]');
+
+  if (view === 'md') {
+    if (mdEl) mdEl.style.display = '';
+    if (pvEl) pvEl.style.display = 'none';
+    mdBtn?.classList.add('active'); pvBtn?.classList.remove('active');
+  } else {
+    if (mdEl) mdEl.style.display = 'none';
+    const tokens = tokenStore.get(msgId);
+    if (!pvEl && tokens) {
+      const pv = renderProbsView(tokens);
+      msgEl.querySelector('.msg-content').appendChild(pv);
+    } else if (pvEl) pvEl.style.display = '';
+    pvBtn?.classList.add('active'); mdBtn?.classList.remove('active');
+  }
+}
+
+// ── add message to DOM ─────────────────────────────────────
+function addMessage(role, html, msgId) {
+  document.getElementById('empty-state')?.remove();
+  const container = document.getElementById('messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  if (msgId) wrap.dataset.msgid = msgId;
+
+  const mdId = msgId ? ` data-msgid="${msgId}"` : '';
+  wrap.innerHTML = `
+    <div class="avatar ${role}">${role === 'user' ? '👤' : '✦'}</div>
+    <div class="msg-body">
+      <div class="msg-role">${role === 'user' ? 'You' : 'Qwen'}</div>
+      <div class="msg-content">
+        <div class="md-view">${html || ''}</div>
+      </div>
+      ${msgId ? `<div class="msg-view-toggle" id="vt-${msgId}">
+        <button class="vtbtn active" data-view="md" onclick="switchView('${msgId}','md')">Markdown</button>
+        <button class="vtbtn" data-view="pv" onclick="switchView('${msgId}','pv')">Token probs</button>
+      </div>` : ''}
+    </div>`;
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+  return wrap.querySelector('.msg-content');
+}
+
+// ── main send / stream ─────────────────────────────────────
+async function sendMessage() {
+  const inp = document.getElementById('input');
+  const text = inp.value.trim();
+  if (!text || abortController) return;
+
+  const model = document.getElementById('model-select').value;
+  if (!model) { setStatus('Select a model first'); return; }
+
+  const thinkOn = document.getElementById('thinking-check').checked;
+  const budget  = parseInt(document.getElementById('think-budget').value) || 0;
+
+  inp.value = ''; inp.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+  document.getElementById('stop-btn').style.display = 'flex';
+
+  messages.push({ role: 'user', content: text });
+  addMessage('user', renderMarkdown(text));
+
+  const msgId = String(++msgIdCounter);
+  const contentEl = addMessage('assistant', '', msgId);
+  const mdView = contentEl.querySelector('.md-view');
+  mdView.innerHTML = '<span class="cursor"></span>';
+
+  abortController = new AbortController();
+  setStatus('Generating…');
+
+  let fullText = '', thinkText = '';
+  let thinkBlockEl = null, thinkBodyEl = null, mdDivEl = null;
+  let tokenCount = 0, thinkTokens = 0;
+  const collectedTokens = []; // [{token, prob, alts}]
+  const t0 = performance.now();
+
+  try {
+    const res = await fetch(`${OLLAMA}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: abortController.signal,
+      body: JSON.stringify({
+        model, messages, stream: true,
+        think: thinkOn,
+        logprobs: true,
+        top_logprobs: 5,
+        options: { num_predict: 4096 },
+        ...(thinkOn && budget > 0 ? { thinking_budget: budget } : {}),
+      }),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const lines = decoder.decode(value).split('\n').filter(Boolean);
+
+      for (const line of lines) {
+        let chunk;
+        try { chunk = JSON.parse(line); } catch { continue; }
+
+        if (chunk.done) {
+          const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+          const thinkInfo = thinkTokens > 0 ? ` · 🧠 ${thinkTokens} think` : '';
+          setStatus(`${tokenCount} tokens${thinkInfo} · ${elapsed}s · ${(tokenCount / elapsed).toFixed(0)} tok/s`);
+          break;
+        }
+
+        const thinkDelta = chunk.message?.thinking || '';
+        const delta      = chunk.message?.content  || '';
+        const lpEntry    = Array.isArray(chunk.logprobs) ? chunk.logprobs[0] : null;
+
+        if (thinkDelta) {
+          thinkTokens++;
+          thinkText += thinkDelta;
+          if (!thinkBlockEl) {
+            thinkBlockEl = makeThinkBlock('', false);
+            thinkBodyEl = thinkBlockEl.querySelector('.think-body');
+            mdView.innerHTML = '';
+            mdView.appendChild(thinkBlockEl);
+          }
+          if (thinkBodyEl) thinkBodyEl.textContent = thinkText;
+          setStatus(`🧠 Thinking… ${thinkTokens} tokens`);
+        }
+
+        if (delta) {
+          tokenCount++;
+          fullText += delta;
+
+          // collect token prob data
+          if (lpEntry) {
+            const prob = Math.exp(lpEntry.logprob);
+            const alts = (lpEntry.top_logprobs || []).map(a => ({
+              token: a.token,
+              prob: Math.exp(a.logprob),
+            }));
+            collectedTokens.push({ token: lpEntry.token, prob, alts });
+          }
+
+          // collapse thinking block once response starts
+          if (thinkBlockEl && thinkBodyEl) {
+            thinkBlockEl.querySelector('.think-hdr')?.classList.add('collapsed');
+            thinkBodyEl.classList.add('hidden');
+            thinkBlockEl = null;
+          }
+
+          if (!mdDivEl) {
+            mdDivEl = document.createElement('div');
+            mdView.appendChild(mdDivEl);
+          }
+          mdDivEl.innerHTML = renderMarkdown(fullText);
+          applyHighlights(mdDivEl);
+        }
+
+        // streaming cursor
+        mdView.querySelectorAll('.cursor').forEach(c => c.remove());
+        if (!chunk.done) {
+          const cur = document.createElement('span');
+          cur.className = 'cursor';
+          mdView.appendChild(cur);
+        }
+
+        document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+      }
+    }
+
+    // finalise
+    mdView.querySelectorAll('.cursor').forEach(c => c.remove());
+
+    // store token data if we collected any
+    if (collectedTokens.length > 0) {
+      tokenStore.set(msgId, collectedTokens);
+      // show the per-message toggle
+      const toggle = document.getElementById(`vt-${msgId}`);
+      if (toggle) toggle.classList.add('visible');
+
+      // if probs mode is already on, immediately show probs view
+      if (probsMode) {
+        const pv = renderProbsView(collectedTokens);
+        contentEl.appendChild(pv);
+        if (mdDivEl) mdDivEl.style.display = 'none';
+        const pvBtn = contentEl.closest('.msg')?.querySelector('.vtbtn[data-view=pv]');
+        const mdBtn = contentEl.closest('.msg')?.querySelector('.vtbtn[data-view=md]');
+        pvBtn?.classList.add('active'); mdBtn?.classList.remove('active');
+      }
+    } else {
+      // hide toggle if no logprobs came back
+      const toggle = document.getElementById(`vt-${msgId}`);
+      if (toggle) toggle.style.display = 'none';
+    }
+
+    if (!fullText && !thinkText) {
+      mdView.innerHTML = '<span style="color:var(--muted)">…</span>';
+    }
+
+    messages.push({ role: 'assistant', content: fullText });
+
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      setStatus('Stopped');
+    } else {
+      setStatus('Error: ' + e.message);
+      mdView.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`;
+    }
+  } finally {
+    abortController = null;
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('stop-btn').style.display = 'none';
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+  }
+}
+
+function stopGeneration() { abortController?.abort(); }
+
+loadModels();
+document.getElementById('input').focus();
+</script>
+</body>
+</html>
