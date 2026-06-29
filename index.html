@@ -39,10 +39,28 @@
 
     /* backend selector */
     #backend-url { width: 200px; font-family: monospace; font-size: 11px; }
-    #probe-controls { display: flex; align-items: center; gap: 8px; }
+    #probe-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     #probe-controls.hidden { display: none; }
     #color-by { max-width: 140px; }
     #concept-input { width: 100px; font-size: 12px; }
+    #probe-status { font-size: 11px; color: var(--muted); }
+
+    /* mix panel */
+    #mix-panel {
+      display: none; position: fixed; top: 50px; right: 16px; z-index: 1000;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px; min-width: 260px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    }
+    #mix-panel.visible { display: block; }
+    #mix-panel h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    #mix-panel .mix-note { font-size: 11px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+    .mix-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .mix-row label { font-size: 12px; color: var(--muted); width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0; }
+    .mix-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .mix-row .mix-val { font-size: 11px; color: var(--muted); width: 32px; text-align: right; flex-shrink: 0; font-family: monospace; }
+    #mix-panel .mix-actions { display: flex; gap: 6px; margin-top: 12px; }
+    #mix-panel .mix-actions button { flex: 1; }
 
     /* ── legend ── */
     #probs-legend { display: none; width: 100%; padding: 5px 18px; align-items: center; background: var(--surface); border-bottom: 1px solid var(--border); }
@@ -194,10 +212,23 @@
            title="Add concept probe (e.g. 'elephant')"
            onkeydown="if(event.key==='Enter') addConcept()" />
     <button class="hdr-btn" onclick="addConcept()" title="Add concept probe">+</button>
+    <button class="hdr-btn" id="mix-btn" onclick="toggleMixPanel()" title="Linear combination mixer">Mix</button>
+    <span id="probe-status"></span>
   </div>
 
   <div class="ml-auto"></div>
   <button class="hdr-btn" onclick="clearChat()">Clear</button>
+</div>
+
+<!-- mix panel -->
+<div id="mix-panel">
+  <h3>Mix probe dimensions</h3>
+  <p class="mix-note">Drag sliders to set weights. Color = weighted sum of normalized probe scores. Negative weights invert the direction.</p>
+  <div id="mix-rows"></div>
+  <div class="mix-actions">
+    <button class="hdr-btn" onclick="resetMix()">Reset</button>
+    <button class="hdr-btn active" onclick="applyMix()">Apply</button>
+  </div>
 </div>
 
 <!-- legend -->
@@ -239,12 +270,15 @@
 
 <script>
 // ── state ─────────────────────────────────────────────────────────────────
-let messages       = [];
+let messages        = [];
 let abortController = null;
-let probsMode      = false;
-let colorBy        = 'logprob';   // 'logprob' | probe name
-let probeServer    = false;       // true when probe server detected
-let msgIdCounter   = 0;
+let probsMode       = false;
+let colorBy         = 'logprob';   // 'logprob' | probe name | 'mix'
+let probeServer     = false;
+let msgIdCounter    = 0;
+let mixWeights      = {};          // probe name → weight (-1..1)
+let knownProbes     = [];
+let probeStatusPoll = null;
 
 // msgId → [{token, logprob, alts, probe_scores, is_thinking}]
 const tokenStore = new Map();
@@ -265,27 +299,60 @@ async function detectProbeServer() {
     if (res.ok) {
       probeServer = true;
       ctrl.classList.remove('hidden');
-      const { probes } = await res.json();
-      updateColorBySelect(probes);
+      const data = await res.json();
+      knownProbes = data.probes || [];
+      updateColorBySelect(knownProbes);
+      updateProbeStatus(data.status);
+      // If probes still computing, poll until ready
+      if (data.status === 'computing') startProbeStatusPoll();
       return;
     }
   } catch {}
   probeServer = false;
   ctrl.classList.add('hidden');
+  if (probeStatusPoll) { clearInterval(probeStatusPoll); probeStatusPoll = null; }
+}
+
+function startProbeStatusPoll() {
+  if (probeStatusPoll) return;
+  probeStatusPoll = setInterval(async () => {
+    try {
+      const res  = await fetch(`${serverUrl()}/api/probes`, { signal: AbortSignal.timeout(2000) });
+      const data = await res.json();
+      const newNames = data.probes || [];
+      if (newNames.length !== knownProbes.length) {
+        knownProbes = newNames;
+        updateColorBySelect(knownProbes);
+        rebuildMixPanel();
+      }
+      updateProbeStatus(data.status);
+      if (data.status === 'ready') {
+        clearInterval(probeStatusPoll); probeStatusPoll = null;
+      }
+    } catch {}
+  }, 3000);
+}
+
+function updateProbeStatus(status) {
+  const el = document.getElementById('probe-status');
+  if (status === 'computing') el.textContent = '⏳ probes computing…';
+  else if (status === 'ready') el.textContent = '';
+  else el.textContent = status || '';
 }
 
 function updateColorBySelect(probeNames) {
-  const sel = document.getElementById('color-by');
+  knownProbes = probeNames;
+  const sel  = document.getElementById('color-by');
   const prev = sel.value;
   sel.innerHTML = '<option value="logprob">logprob</option>';
   for (const name of probeNames) {
     const opt = document.createElement('option');
     opt.value = name;
-    opt.textContent = name;
+    opt.textContent = name.replace('concept:', '');
     sel.appendChild(opt);
   }
   if ([...sel.options].some(o => o.value === prev)) sel.value = prev;
-  colorBy = sel.value;
+  if (colorBy !== 'mix') colorBy = sel.value;
   updateLegend();
 }
 
@@ -349,20 +416,24 @@ function updateLegend() {
   if (colorBy === 'logprob') {
     grad.className = 'legend-grad lp';
     lo.textContent = 'certain'; hi.textContent = 'uncertain';
+  } else if (colorBy === 'mix') {
+    grad.className = 'legend-grad pos';
+    const active = Object.entries(mixWeights).filter(([,w]) => w !== 0);
+    lo.textContent = 'low mix'; hi.textContent = 'high mix';
+    if (active.length) hi.textContent = active.map(([n,w]) => `${w>0?'+':''}${w.toFixed(1)}·${n.replace('concept:','')}`).join(' ');
   } else if (colorBy === 'positivity') {
     grad.className = 'legend-grad pos';
     lo.textContent = 'negative'; hi.textContent = 'positive';
   } else if (colorBy === 'truthfulness') {
     grad.className = 'legend-grad pos';
-    lo.textContent = 'uncertain'; hi.textContent = 'truthful';
+    lo.textContent = 'less truthful'; hi.textContent = 'more truthful';
   } else if (colorBy === 'certainty') {
     grad.className = 'legend-grad pos';
     lo.textContent = 'uncertain'; hi.textContent = 'certain';
   } else {
-    // concept probe
     grad.className = 'legend-grad pos';
     const label = colorBy.replace('concept:', '');
-    lo.textContent = `not ${label}`; hi.textContent = label;
+    lo.textContent = `not "${label}"`; hi.textContent = `"${label}"`;
   }
 }
 
@@ -478,18 +549,81 @@ function formatPct(p) {
   return pct.toFixed(2) + '%';
 }
 
+// ── mix panel ─────────────────────────────────────────────────────────────
+function toggleMixPanel() {
+  const panel = document.getElementById('mix-panel');
+  const btn   = document.getElementById('mix-btn');
+  const open  = panel.classList.toggle('visible');
+  btn.classList.toggle('active', open);
+  if (open) rebuildMixPanel();
+}
+
+function rebuildMixPanel() {
+  const container = document.getElementById('mix-rows');
+  container.innerHTML = '';
+  const probeNames = knownProbes;
+  if (!probeNames.length) {
+    container.innerHTML = '<p style="font-size:12px;color:var(--muted)">No probes loaded yet.</p>';
+    return;
+  }
+  probeNames.forEach(name => {
+    if (!(name in mixWeights)) mixWeights[name] = 0;
+    const w = mixWeights[name];
+    const row = document.createElement('div');
+    row.className = 'mix-row';
+    const label = name.replace('concept:', '');
+    row.innerHTML = `
+      <label title="${name}">${label}</label>
+      <input type="range" min="-1" max="1" step="0.05" value="${w}"
+             oninput="mixWeights['${name}']=parseFloat(this.value);this.nextElementSibling.textContent=parseFloat(this.value).toFixed(2)" />
+      <span class="mix-val">${w.toFixed(2)}</span>`;
+    container.appendChild(row);
+  });
+}
+
+function resetMix() {
+  knownProbes.forEach(n => mixWeights[n] = 0);
+  rebuildMixPanel();
+}
+
+function applyMix() {
+  colorBy = 'mix';
+  document.getElementById('color-by').value = 'logprob'; // visual reset; mix overrides
+  updateLegend();
+  if (probsMode) rerenderAllProbs();
+  document.getElementById('mix-panel').classList.remove('visible');
+  document.getElementById('mix-btn').classList.remove('active');
+}
+
 // Compute per-token normalized color values for a given colorBy dimension
 function computeTokenColors(tokens) {
   if (colorBy === 'logprob') {
-    // logprob: higher prob → lower t (greener)
     const probs = tokens.map(t => Math.exp(t.logprob));
-    return probs.map(p => ({ t: 1 - p, invert: false }));  // transparent near 1.0
-  } else {
-    const scores = tokens.map(t => (t.probe_scores || {})[colorBy] ?? 0);
-    const norm   = normalize(scores);
-    // probe: higher score = more of the concept = green (invert=true)
-    return norm.map(n => ({ t: n, invert: true }));
+    return probs.map(p => ({ t: 1 - p, invert: false }));
   }
+
+  if (colorBy === 'mix') {
+    // Weighted sum of normalized probe scores
+    const activeWeights = Object.entries(mixWeights).filter(([, w]) => w !== 0);
+    if (!activeWeights.length) {
+      return tokens.map(() => ({ t: 0.5, invert: false }));
+    }
+    // Per-probe: normalize across all tokens, then weighted sum
+    const rawScores = activeWeights.map(([name]) =>
+      tokens.map(t => (t.probe_scores || {})[name] ?? 0)
+    );
+    const normScores = rawScores.map(normalize);
+    const combined = tokens.map((_, i) =>
+      activeWeights.reduce((sum, [, w], pi) => sum + w * normScores[pi][i], 0)
+    );
+    const normCombined = normalize(combined);
+    return normCombined.map(n => ({ t: n, invert: true }));
+  }
+
+  // Single probe
+  const scores = tokens.map(t => (t.probe_scores || {})[colorBy] ?? 0);
+  const norm   = normalize(scores);
+  return norm.map(n => ({ t: n, invert: true }));
 }
 
 function renderProbsView(tokens) {

@@ -11,12 +11,18 @@ Install:
 Run:
   python server.py
   python server.py --model Qwen/Qwen3-8B --port 8000 --probe-layer 18
+
+Probe vectors are cached to probes_cache.pt after first computation.
+Subsequent starts load from cache and skip the ~2 min bootstrapping.
+Delete probes_cache.pt to force recomputation.
 """
 
 import argparse
 import asyncio
+import hashlib
 import json
-import sys
+import os
+import pathlib
 
 import torch
 import torch.nn.functional as F
@@ -36,13 +42,18 @@ p.add_argument("--no-quant",    action="store_true",
                help="Disable 4-bit quantization (needs 16 GB+ VRAM)")
 p.add_argument("--temperature", type=float, default=0.6)
 p.add_argument("--top-p",       type=float, default=0.9)
+p.add_argument("--no-cache",    action="store_true",
+               help="Ignore probe cache and recompute from scratch")
 args = p.parse_args()
 
+CACHE_FILE = pathlib.Path("probes_cache.pt")
+
 # ── Globals ──────────────────────────────────────────────────────────────────
-model     = None
-tokenizer = None
-probe_layer_idx = args.probe_layer   # resolved after model load
-probes: dict[str, torch.Tensor] = {}  # name → unit vector (CPU fp32)
+model           = None
+tokenizer       = None
+probe_layer_idx = args.probe_layer
+probes: dict[str, torch.Tensor] = {}   # name → unit vector (CPU fp32)
+probes_status   = "loading"            # "loading" | "computing" | "ready"
 
 # ── Probe contrast-pair definitions ─────────────────────────────────────────
 
@@ -51,11 +62,11 @@ POSITIVE_TEMPLATES = {
         "The following statement is true: {s}",
         "This is a verified fact: {s}",
         "It is factually correct that {s}",
-        "This is accurate information: {s}",
+        "This is accurate: {s}",
     ],
     "positivity": [
-        "This is a positive and uplifting thought: {s}",
-        "Something good and wonderful happened: {s}",
+        "This is a positive, uplifting thought: {s}",
+        "Something good happened: {s}",
         "A happy, optimistic outlook: {s}",
     ],
     "certainty": [
@@ -70,11 +81,11 @@ NEGATIVE_TEMPLATES = {
         "The following statement is false: {s}",
         "This is misinformation: {s}",
         "It is factually incorrect that {s}",
-        "This is inaccurate information: {s}",
+        "This is inaccurate: {s}",
     ],
     "positivity": [
-        "This is a negative and pessimistic thought: {s}",
-        "Something bad and disappointing happened: {s}",
+        "This is a negative, pessimistic thought: {s}",
+        "Something bad happened: {s}",
         "A sad, gloomy outlook: {s}",
     ],
     "certainty": [
@@ -117,44 +128,74 @@ PROBE_STATEMENTS = {
     ],
 }
 
+# ── Cache key ────────────────────────────────────────────────────────────────
+
+def cache_key() -> str:
+    """Fingerprint: model + layer + quant mode. If any changes, recompute."""
+    s = f"{args.model}|{probe_layer_idx}|{'noquant' if args.no_quant else '4bit'}"
+    return hashlib.md5(s.encode()).hexdigest()[:12]
+
+
+def load_probe_cache() -> bool:
+    if args.no_cache or not CACHE_FILE.exists():
+        return False
+    try:
+        data = torch.load(CACHE_FILE, map_location="cpu", weights_only=True)
+        if data.get("key") != cache_key():
+            print("Probe cache is stale (model/layer changed) — recomputing.")
+            return False
+        for name, vec in data["probes"].items():
+            probes[name] = vec
+        print(f"Loaded {len(probes)} probe vectors from cache ({CACHE_FILE})")
+        return True
+    except Exception as e:
+        print(f"Cache load failed ({e}) — recomputing.")
+        return False
+
+
+def save_probe_cache():
+    try:
+        # Only cache built-in probes (not ephemeral concept probes)
+        builtin = {k: v for k, v in probes.items()
+                   if k in ("truthfulness", "positivity", "certainty")}
+        torch.save({"key": cache_key(), "probes": builtin}, CACHE_FILE)
+        print(f"Probe cache saved to {CACHE_FILE}")
+    except Exception as e:
+        print(f"Cache save failed: {e}")
+
 
 # ── Probe computation ─────────────────────────────────────────────────────────
 
 @torch.no_grad()
 def mean_hidden(texts: list[str]) -> torch.Tensor:
-    """Mean-pool hidden states at probe_layer_idx for a batch of texts."""
     enc = tokenizer(texts, return_tensors="pt", padding=True,
                     truncation=True, max_length=256)
     enc = {k: v.to(model.device) for k, v in enc.items()}
     out = model(**enc, output_hidden_states=True)
-    h = out.hidden_states[probe_layer_idx]   # [B, L, H]
+    h   = out.hidden_states[probe_layer_idx]        # [B, L, H]
     mask = enc["attention_mask"].unsqueeze(-1).float()
-    pooled = (h * mask).sum(1) / mask.sum(1)  # [B, H]
-    return pooled.float().cpu()
+    return ((h * mask).sum(1) / mask.sum(1)).float().cpu()  # [B, H]
 
 
 def make_probe(pos_texts: list[str], neg_texts: list[str]) -> torch.Tensor:
-    pos = mean_hidden(pos_texts).mean(0)
-    neg = mean_hidden(neg_texts).mean(0)
-    return F.normalize(pos - neg, dim=0)
+    chunk = 8
+    pos = torch.cat([mean_hidden(pos_texts[i:i+chunk]) for i in range(0, len(pos_texts), chunk)])
+    neg = torch.cat([mean_hidden(neg_texts[i:i+chunk]) for i in range(0, len(neg_texts), chunk)])
+    return F.normalize(pos.mean(0) - neg.mean(0), dim=0)
 
 
 def bootstrap_builtin_probes():
+    global probes_status
     for name in ("truthfulness", "positivity", "certainty"):
-        print(f"  computing '{name}' probe …", flush=True)
-        stmts   = PROBE_STATEMENTS[name]
-        pos_tmp = POSITIVE_TEMPLATES[name]
-        neg_tmp = NEGATIVE_TEMPLATES[name]
-        pos = [t.format(s=s) for s in stmts for t in pos_tmp]
-        neg = [t.format(s=s) for s in stmts for t in neg_tmp]
-        # batch in chunks of 8 to avoid OOM
-        chunk = 8
-        pos_vecs = [mean_hidden(pos[i:i+chunk]) for i in range(0, len(pos), chunk)]
-        neg_vecs = [mean_hidden(neg[i:i+chunk]) for i in range(0, len(neg), chunk)]
-        pos_mean = torch.cat(pos_vecs).mean(0)
-        neg_mean = torch.cat(neg_vecs).mean(0)
-        probes[name] = F.normalize(pos_mean - neg_mean, dim=0)
-    print("Probes ready.", flush=True)
+        print(f"  [{name}] computing…", flush=True)
+        stmts = PROBE_STATEMENTS[name]
+        pos = [t.format(s=s) for s in stmts for t in POSITIVE_TEMPLATES[name]]
+        neg = [t.format(s=s) for s in stmts for t in NEGATIVE_TEMPLATES[name]]
+        probes[name] = make_probe(pos, neg)
+        print(f"  [{name}] done", flush=True)
+    save_probe_cache()
+    probes_status = "ready"
+    print("All probes ready — server fully operational.", flush=True)
 
 
 def make_concept_probe(concept: str) -> torch.Tensor:
@@ -181,21 +222,16 @@ def sample_next(logits: torch.Tensor,
                 temperature: float, top_p: float) -> tuple[int, float]:
     if temperature == 0:
         tid = int(logits.argmax())
-        lp  = float(F.log_softmax(logits, dim=-1)[tid])
-        return tid, lp
-
+        return tid, float(F.log_softmax(logits, dim=-1)[tid])
     logits = logits / temperature
-    # nucleus sampling
-    sorted_l, sorted_i = torch.sort(logits, descending=True)
-    cum_p = torch.cumsum(F.softmax(sorted_l, dim=-1), dim=-1)
-    remove = (cum_p - F.softmax(sorted_l, dim=-1)) > top_p
-    sorted_l[remove] = -float("inf")
+    sl, si = torch.sort(logits, descending=True)
+    cum = torch.cumsum(F.softmax(sl, dim=-1), dim=-1)
+    sl[cum - F.softmax(sl, dim=-1) > top_p] = -float("inf")
     full = torch.full_like(logits, -float("inf"))
-    full[sorted_i] = sorted_l
+    full[si] = sl
     probs = F.softmax(full, dim=-1)
     tid   = int(torch.multinomial(probs, 1))
-    lp    = float(F.log_softmax(logits, dim=-1)[tid])
-    return tid, lp
+    return tid, float(F.log_softmax(logits, dim=-1)[tid])
 
 
 def top_logprobs(logits: torch.Tensor, k: int = 5) -> list[dict]:
@@ -206,9 +242,8 @@ def top_logprobs(logits: torch.Tensor, k: int = 5) -> list[dict]:
 
 # ── Generation ────────────────────────────────────────────────────────────────
 
-# EOS token IDs to stop at (filled after model load)
-EOS_IDS: set[int] = set()
-EOS_STRS = ("</s>", "<|im_end|>", "<|endoftext|>")
+EOS_IDS:  set[int] = set()
+EOS_STRS: tuple    = ("</s>", "<|im_end|>", "<|endoftext|>")
 
 
 async def stream_generate(
@@ -222,24 +257,19 @@ async def stream_generate(
     if active_probes is None:
         active_probes = list(probes.keys())
 
-    # Build prompt
     try:
         prompt = tokenizer.apply_chat_template(
             messages, tokenize=False,
-            add_generation_prompt=True, enable_thinking=think,
-        )
+            add_generation_prompt=True, enable_thinking=think)
     except TypeError:
         prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True,
-        )
+            messages, tokenize=False, add_generation_prompt=True)
 
     input_ids = tokenizer(prompt, return_tensors="pt").input_ids.to(model.device)
-    pkv       = None
+    pkv  = None
     gen_ids: list[int] = []
     decoded_so_far = ""
-
-    think_open  = False
-    think_close = False
+    think_open = think_close = False
 
     for _ in range(max_tokens):
         with torch.no_grad():
@@ -247,57 +277,48 @@ async def stream_generate(
                 out = model(input_ids=input_ids,
                             output_hidden_states=True, use_cache=True, return_dict=True)
             else:
-                out = model(input_ids=input_ids[:, -1:],
-                            past_key_values=pkv,
+                out = model(input_ids=input_ids[:, -1:], past_key_values=pkv,
                             output_hidden_states=True, use_cache=True, return_dict=True)
 
         pkv    = out.past_key_values
-        logits = out.logits[0, -1, :]                        # [vocab]
-        hidden = out.hidden_states[probe_layer_idx][0, -1, :].float().cpu()  # [H]
+        logits = out.logits[0, -1, :]
+        hidden = out.hidden_states[probe_layer_idx][0, -1, :].float().cpu()
 
         tid, lp = sample_next(logits, temperature, top_p)
         tlp     = top_logprobs(logits)
 
-        # Probe scores
-        scores = {
-            name: float(hidden @ probes[name])
-            for name in active_probes if name in probes
-        }
+        # Probe scores — only available probes (may still be computing)
+        scores = {name: float(hidden @ probes[name])
+                  for name in active_probes if name in probes}
 
-        # Decode
         gen_ids.append(tid)
-        # Decode full sequence for accurate text (handles multi-byte tokens)
-        full_text = tokenizer.decode(gen_ids, skip_special_tokens=False,
-                                     clean_up_tokenization_spaces=False)
+        full_text  = tokenizer.decode(gen_ids, skip_special_tokens=False,
+                                      clean_up_tokenization_spaces=False)
         token_text = full_text[len(decoded_so_far):]
         decoded_so_far = full_text
 
-        # Thinking state
         if not think_open and "<think>" in full_text:
             think_open = True
         if think_open and not think_close and "</think>" in full_text:
             think_close = True
 
         is_thinking = think_open and not think_close
-        # Strip structural markers from display text
-        display = token_text
-        for marker in ("<think>", "</think>"):
-            display = display.replace(marker, "")
+        display     = token_text.replace("<think>", "").replace("</think>", "")
 
-        chunk = {
+        yield json.dumps({
             "message": {
                 "role":     "assistant",
                 "content":  display if not is_thinking else "",
-                "thinking": display if is_thinking else "",
+                "thinking": display if is_thinking     else "",
             },
-            "logprobs": [{"token": token_text, "logprob": lp, "top_logprobs": tlp}],
+            "logprobs":    [{"token": token_text, "logprob": lp, "top_logprobs": tlp}],
             "probe_scores": scores,
+            "probes_status": probes_status,
             "done": False,
-        }
-        yield json.dumps(chunk) + "\n"
-        await asyncio.sleep(0)   # yield to event loop
+        }) + "\n"
 
-        # Stop conditions
+        await asyncio.sleep(0)
+
         if tid in EOS_IDS:
             break
         if any(s in full_text[-20:] for s in EOS_STRS):
@@ -305,10 +326,14 @@ async def stream_generate(
 
         input_ids = torch.tensor([[tid]], device=model.device)
 
-    yield json.dumps({"done": True, "message": {"role": "assistant", "content": ""}}) + "\n"
+    yield json.dumps({
+        "done": True,
+        "message": {"role": "assistant", "content": ""},
+        "probes_status": probes_status,
+    }) + "\n"
 
 
-# ── FastAPI ───────────────────────────────────────────────────────────────────
+# ── App ───────────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Probe Server")
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
@@ -317,38 +342,27 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"],
 
 @app.on_event("startup")
 async def startup():
-    global model, tokenizer, probe_layer_idx, EOS_IDS
+    global model, tokenizer, probe_layer_idx, EOS_IDS, probes_status
 
-    print(f"Loading {args.model} …", flush=True)
+    print(f"\nLoading {args.model} …", flush=True)
     bnb = None if args.no_quant else BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.float16,
+        load_in_4bit=True, bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=torch.float16,
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model, trust_remote_code=True)
-    model     = AutoModelForCausalLM.from_pretrained(
-        args.model,
-        device_map="auto",
+    model = AutoModelForCausalLM.from_pretrained(
+        args.model, device_map="auto",
         quantization_config=bnb,
         torch_dtype=torch.float16 if args.no_quant else None,
         trust_remote_code=True,
     )
     model.eval()
 
-    n_layers = model.config.num_hidden_layers
-    # hidden_states tuple: [embedding, layer_0, ..., layer_N]  → length N+2
-    # probe_layer_idx into that tuple: 0=embed, 1..N+1=transformer layers
-    if args.probe_layer == -1:
-        probe_layer_idx = (n_layers // 2) + 1  # middle transformer layer
-    else:
-        probe_layer_idx = min(args.probe_layer + 1, n_layers + 1)
+    n = model.config.num_hidden_layers
+    probe_layer_idx = (n // 2) + 1 if args.probe_layer == -1 else min(args.probe_layer + 1, n + 1)
+    print(f"Model ready ({n} layers). Probing hidden_states[{probe_layer_idx}] "
+          f"(transformer layer {probe_layer_idx-1}).", flush=True)
 
-    print(f"Model ready. {n_layers} transformer layers. "
-          f"Probing at hidden_states[{probe_layer_idx}] "
-          f"(transformer layer {probe_layer_idx - 1}).", flush=True)
-
-    # EOS ids
     for tok in EOS_STRS:
         tid = tokenizer.convert_tokens_to_ids(tok)
         if isinstance(tid, int) and tid != tokenizer.unk_token_id:
@@ -356,10 +370,20 @@ async def startup():
     if tokenizer.eos_token_id:
         EOS_IDS.add(tokenizer.eos_token_id)
 
-    print("Bootstrapping built-in probes …", flush=True)
-    # Run in thread pool so startup doesn't block event loop
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, bootstrap_builtin_probes)
+    # Try cache first — if hit, server is immediately fully operational
+    if load_probe_cache():
+        probes_status = "ready"
+    else:
+        # Bootstrap in background so the server accepts requests immediately
+        probes_status = "computing"
+        print("Computing probe vectors in background (server is live now)…", flush=True)
+        print("Probes will appear in the UI as they finish. "
+              "First message can be sent right away.", flush=True)
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, bootstrap_builtin_probes)
+
+    print(f"\n✓ Server live on http://0.0.0.0:{args.port}  "
+          f"(probes: {probes_status})\n", flush=True)
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -371,7 +395,7 @@ async def list_models():
 
 @app.get("/api/probes")
 async def list_probes():
-    return {"probes": list(probes.keys())}
+    return {"probes": list(probes.keys()), "status": probes_status}
 
 
 @app.post("/api/probes/compute")
@@ -395,22 +419,22 @@ async def delete_probe(name: str):
 
 @app.post("/api/chat")
 async def chat(body: dict):
-    messages      = body.get("messages", [])
-    opts          = body.get("options", {})
-    max_tokens    = opts.get("num_predict", 2048)
-    temperature   = opts.get("temperature", args.temperature)
-    top_p         = opts.get("top_p", args.top_p)
-    think         = body.get("think", True)
-    active_probes = body.get("active_probes")   # None = all
-
+    opts  = body.get("options", {})
     return StreamingResponse(
-        stream_generate(messages, max_tokens, temperature, top_p, think, active_probes),
+        stream_generate(
+            messages      = body.get("messages", []),
+            max_tokens    = opts.get("num_predict", 2048),
+            temperature   = opts.get("temperature", args.temperature),
+            top_p         = opts.get("top_p", args.top_p),
+            think         = body.get("think", True),
+            active_probes = body.get("active_probes"),
+        ),
         media_type="application/x-ndjson",
     )
 
 
 if __name__ == "__main__":
-    print(f"Starting probe server on port {args.port}")
-    print("  Quantization:", "disabled" if args.no_quant else "4-bit NF4")
-    print(f"  Model:   {args.model}")
+    print(f"Probe server  |  model: {args.model}  |  port: {args.port}")
+    print(f"Quantization: {'disabled' if args.no_quant else '4-bit NF4'}")
+    print(f"Probe cache:  {CACHE_FILE} ({'ignore' if args.no_cache else 'use if present'})\n")
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")
